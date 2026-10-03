@@ -8,8 +8,6 @@
 --     carries is_active and there are no DELETE grants on attendance tables.
 -- =============================================================================
 
-create extension if not exists pgcrypto;
-
 create schema if not exists app;
 comment on schema app is 'Private helper functions for the attendance system (not exposed through PostgREST).';
 
@@ -26,16 +24,19 @@ create type public.attendance_status as enum ('present', 'absent');
 create or replace function app.my_now()
 returns timestamp
 language sql stable
+set search_path = public, pg_temp
 as $$ select (now() at time zone 'Asia/Kuala_Lumpur') $$;
 
 create or replace function app.my_today()
 returns date
 language sql stable
+set search_path = public, pg_temp
 as $$ select (now() at time zone 'Asia/Kuala_Lumpur')::date $$;
 
 create or replace function app.touch_updated_at()
 returns trigger
 language plpgsql
+set search_path = public, pg_temp
 as $$
 begin
   new.updated_at := now();
@@ -181,6 +182,7 @@ create trigger tutor_group_assignments_touch before update on public.tutor_group
 create or replace function app.check_assignment_role()
 returns trigger
 language plpgsql
+set search_path = public, pg_temp
 as $$
 begin
   if not exists (select 1 from public.profiles p where p.id = new.tutor_profile_id and p.role = 'tutor') then
@@ -231,6 +233,7 @@ create trigger attendance_sessions_touch before update on public.attendance_sess
 create or replace function app.check_session_module()
 returns trigger
 language plpgsql
+set search_path = public, pg_temp
 as $$
 begin
   if not exists (
@@ -294,6 +297,7 @@ create index audit_logs_created_idx on public.audit_logs (created_at desc);
 create or replace function app.audit_logs_immutable()
 returns trigger
 language plpgsql
+set search_path = public, pg_temp
 as $$
 begin
   raise exception 'audit_logs is append-only' using errcode = '42501';

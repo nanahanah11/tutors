@@ -60,6 +60,11 @@ export function supabaseBackend(cfg: ServerConfig): Backend {
     async recordAttempt({ clientHash, prefix, success }) {
       const { error } = await db.from('tutor_code_attempts').insert({ client_hash: clientHash, code_prefix: prefix, success });
       if (error) throw error;
+      // Occasionally prune attempts older than 7 days; only recent rows matter for rate limiting.
+      if (Math.random() < 0.05) {
+        const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+        await db.from('tutor_code_attempts').delete().lt('attempted_at', cutoff);
+      }
     },
     async rpc(fn, args) {
       const { data, error } = await db.rpc(fn, args);

@@ -8,7 +8,7 @@ cd "$(dirname "$0")/../.."
 export PGUSER="${PGUSER:-$(whoami)}" PGHOST="${PGHOST:-/var/run/postgresql}"
 export PGOPTIONS="-c client_min_messages=warning"
 DB="${E2E_DB:-apu_attendance_e2e}"
-OUT="${E2E_OUT:-$(mktemp -d)}"
+OUT="${E2E_OUT:-$(mktemp -d)}"; mkdir -p "$OUT"
 CACHE=node_modules/.cache/postgrest
 JWT_SECRET="local-e2e-jwt-secret-$(head -c 12 /dev/urandom | od -An -tx1 | tr -d ' \n')"
 PORT=5179

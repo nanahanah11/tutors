@@ -1,0 +1,21 @@
+# Supabase CLI project configuration (used by `supabase start` / `supabase db reset` locally
+# and `supabase db push` after `supabase link --project-ref <ref>`).
+project_id = "apu-tutorial-attendance"
+
+[api]
+schemas = ["public"]
+
+[db]
+major_version = 15
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
+[auth]
+site_url = "http://localhost:5173"
+# Only Ms Aida's account exists; it is created with `npm run bootstrap`. No public sign-ups.
+enable_signup = false
+
+[auth.email]
+enable_signup = false
