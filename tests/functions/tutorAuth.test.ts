@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createTutorApiHandler, createTutorAuthHandler } from '../../netlify/functions/_lib/handlers';
-import { cookieFrom, makeBackend, req, testConfig, type FakeBackend } from './fakeBackend';
+import { readBody, cookieFrom, makeBackend, req, testConfig, type FakeBackend } from './fakeBackend';
 
 let backend: FakeBackend;
 let login: ReturnType<typeof createTutorAuthHandler>;
@@ -20,7 +20,7 @@ describe('tutor code validation (AC-001, AC-015, FR-AUTH-004..009)', () => {
   it('resolves a valid code to exactly one tutor and sets an HttpOnly session cookie', async () => {
     const res = await login(post('/api/tutor-auth/login', { code: ' may123 ' }));
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await readBody(res);
     expect(body.tutor).toEqual({ id: backend.tutors[0].id, full_name: 'May' });
     const cookie = res.headers.get('set-cookie')!;
     expect(cookie).toMatch(/^apu_tutor_session=/);
@@ -35,7 +35,7 @@ describe('tutor code validation (AC-001, AC-015, FR-AUTH-004..009)', () => {
     for (const code of ['MAY124', 'hello', 'AMIR456', '', 'ZED123']) {
       const res = await login(post('/api/tutor-auth/login', { code }, { ip: `198.51.100.${code.length}` }));
       expect(res.status).toBe(401);
-      expect(await res.json()).toEqual({ ok: false, error: 'INVALID_CODE' });
+      expect(await readBody(res)).toEqual({ ok: false, error: 'INVALID_CODE' });
       expect(res.headers.get('set-cookie')).toBeNull();
     }
     expect(backend.calls).toHaveLength(0); // no roster/attendance queried
@@ -47,7 +47,7 @@ describe('tutor code validation (AC-001, AC-015, FR-AUTH-004..009)', () => {
     }
     const blocked = await login(post('/api/tutor-auth/login', { code: 'MAY123' }));
     expect(blocked.status).toBe(429);
-    expect((await blocked.json()).error).toBe('RATE_LIMITED');
+    expect((await readBody(blocked)).error).toBe('RATE_LIMITED');
     // window expires after 15 minutes
     backend.clock.now += 15 * 60 * 1000 + 1;
     expect((await login(post('/api/tutor-auth/login', { code: 'MAY123' }))).status).toBe(200);
@@ -161,7 +161,7 @@ describe('tutor attendance API authorization (§26.3, AC-014)', () => {
     for (const extra of [{ apspace_status: 'keyed_in' }, { tutor_profile_id: backend.tutors[1].id }]) {
       const res = await api(json(`/api/tutor/sessions/${SESSION}`, 'PUT', { records: [], ...extra }));
       expect(res.status).toBe(403);
-      expect((await res.json()).error).toBe('FORBIDDEN_FIELD');
+      expect((await readBody(res)).error).toBe('FORBIDDEN_FIELD');
     }
     const res = await api(json('/api/tutor/sessions', 'POST', {
       tutorial_group_id: GROUP, class_date: '2026-10-03', class_time: '10:45', apspace_status: 'keyed_in', records: [],
@@ -183,21 +183,21 @@ describe('tutor attendance API authorization (§26.3, AC-014)', () => {
       records: [{ student_id: STUDENT }],
     }));
     expect(res.status).toBe(422);
-    expect((await res.json()).error).toBe('UNMARKED_STUDENTS');
+    expect((await readBody(res)).error).toBe('UNMARKED_STUDENTS');
   });
 
   it('maps database rule violations to HTTP errors', async () => {
     backend.rpcResults.api_tutor_save_attendance = { ok: false, error: 'EDIT_WINDOW_CLOSED' };
     let res = await api(json(`/api/tutor/sessions/${SESSION}`, 'PUT', { records: [{ student_id: STUDENT, status: 'absent' }] }));
     expect(res.status).toBe(403);
-    expect((await res.json()).error).toBe('EDIT_WINDOW_CLOSED');
+    expect((await readBody(res)).error).toBe('EDIT_WINDOW_CLOSED');
 
     backend.rpcResults.api_tutor_save_attendance = { ok: false, error: 'DUPLICATE_SESSION', existing_session_id: SESSION };
     res = await api(json('/api/tutor/sessions', 'POST', {
       tutorial_group_id: GROUP, class_date: '2026-10-03', class_time: '10:45', records: [{ student_id: STUDENT, status: 'present' }],
     }));
     expect(res.status).toBe(409);
-    expect((await res.json()).existing_session_id).toBe(SESSION);
+    expect((await readBody(res)).existing_session_id).toBe(SESSION);
 
     backend.rpcResults.api_tutor_roster = { ok: false, error: 'NOT_ASSIGNED' };
     res = await api(req(`/api/tutor/classes/${GROUP}/roster`, { headers: { cookie } }));

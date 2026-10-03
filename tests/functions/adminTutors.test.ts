@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createAdminTutorsHandler } from '../../netlify/functions/_lib/handlers';
 import { verifyTutorCode } from '../../netlify/functions/_lib/codeHash';
-import { makeBackend, PEPPER, req, testConfig, type FakeBackend } from './fakeBackend';
+import { readBody, makeBackend, PEPPER, req, testConfig, type FakeBackend } from './fakeBackend';
 
 let backend: FakeBackend;
 let admin: ReturnType<typeof createAdminTutorsHandler>;
@@ -22,7 +22,7 @@ describe('tutor code administration (FR-AUTH-010, FR-TUT-001)', () => {
   it('generates PREFIX### codes, stores only the hash and returns the code once', async () => {
     const res = await admin(call({ action: 'regenerate', tutor_id: backend.tutors[0].id, prefix: 'MAY' }));
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await readBody(res);
     expect(body.code).toMatch(/^MAY\d{3}$/);
     const rpc = backend.calls.at(-1)!;
     expect(rpc.fn).toBe('api_admin_upsert_tutor');
@@ -40,7 +40,7 @@ describe('tutor code administration (FR-AUTH-010, FR-TUT-001)', () => {
 
   it('lists tutors without hashes', async () => {
     const res = await admin(req('/api/admin/tutors', { headers: { authorization: 'Bearer lecturer-jwt' } }));
-    const body = await res.json();
+    const body = await readBody(res);
     expect(JSON.stringify(body)).not.toContain('scrypt');
     expect(body.tutors[0]).toMatchObject({ full_name: 'May', code_set: true });
   });

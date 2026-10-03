@@ -18,6 +18,9 @@ for t in supabase/tests/[1-9]*_test.sql; do
   echo "▶ $t"
   if ! "${PSQL[@]}" -d "$DB" -f "$t"; then status=1; fi
 done
+echo "▶ API integration tests (Netlify handlers -> SQL)"
+if ! PGUSER="${PGUSER:-$(whoami)}" PGHOST="${PGHOST:-/var/run/postgresql}" TEST_DATABASE_URL="postgresql:///$DB" \
+     npx vitest run tests/integration; then status=1; fi
 [ "${KEEP_DB:-0}" = "1" ] || dropdb "$DB"
 if [ $status -eq 0 ]; then echo "✔ all SQL tests passed"; else echo "✘ SQL tests failed"; fi
 exit $status

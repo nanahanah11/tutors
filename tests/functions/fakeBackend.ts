@@ -78,3 +78,6 @@ export function cookieFrom(res: Response): string {
   const set = res.headers.get('set-cookie') ?? '';
   return set.split(';')[0];
 }
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const readBody = (res: Response): Promise<any> => res.json();
