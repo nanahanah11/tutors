@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.netlify/
+.env
+.env.*
+!.env.example
+*.local
+coverage/
+*.tsbuildinfo
+# Never commit generated tutor codes or student rosters (FR-TUT-007, §21.4)
+tutor-codes*.txt
+*.xlsx
+*.xls
+rosters/
