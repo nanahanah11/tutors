@@ -65,6 +65,15 @@ export function pgBackend(pool: pg.Pool): Backend {
       return asService(async (c) => (await c.query(sql, values)).rows[0].r as T);
     },
     async lecturerFromAccessToken(token) {
+      if (token.split('.').length === 3 && !token.includes('@')) {
+        // Local E2E: a lecturer JWT signed for PostgREST – resolve by subject.
+        const sub = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString()).sub;
+        const r = await pool.query(
+          `select id, full_name from profiles where auth_user_id = $1 and role = 'lecturer' and is_active`,
+          [sub],
+        );
+        return r.rows[0] ?? null;
+      }
       const { rows } = await pool.query(
         `select p.id, p.full_name from profiles p join auth.users u on u.id = p.auth_user_id
           where u.email = $1 and p.role = 'lecturer' and p.is_active`,

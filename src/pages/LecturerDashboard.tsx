@@ -251,7 +251,7 @@ export default function LecturerDashboard() {
                   <td className="num">{s.absent_count}</td>
                   <td><ApspaceBadge status={s.apspace_status} /></td>
                   <td className="no-print">
-                    <div className="row" style={{ gap: '0.4rem', flexWrap: 'nowrap' }}>
+                    <div className="row" style={{ gap: '0.4rem' }}>
                       <Link to={`/lecturer/attendance/${s.id}`} className="btn btn-sm btn-primary">View</Link>
                       {s.apspace_status === 'pending' && (
                         <button type="button" className="btn btn-sm" disabled={busy} onClick={() => markKeyed([s.id])}>

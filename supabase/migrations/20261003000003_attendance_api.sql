@@ -583,19 +583,20 @@ $$;
 -- Roster import (PRD §18.3). Rows: [{student_id, student_name, group_number}] already
 -- normalised and pre-validated by the client; validated again here.
 -- p_dry_run = true -> returns the summary without writing (preview, §18.3.11).
-create or replace function public.lecturer_import_roster(
+create or replace function app.import_roster(
+  p_lecturer uuid,
   p_module_id uuid,
   p_rows jsonb,
-  p_filename text default null,
-  p_dry_run boolean default true,
-  p_deactivate_missing boolean default false,
-  p_excluded_rows int default 0
+  p_filename text,
+  p_dry_run boolean,
+  p_deactivate_missing boolean,
+  p_excluded_rows int
 ) returns jsonb
 language plpgsql security definer
 set search_path = public, pg_temp
 as $$
 declare
-  v_lecturer uuid := app.current_lecturer_id();
+  v_lecturer uuid := p_lecturer;
   v_module public.modules;
   v_elem jsonb;
   v_idx int := 0;
@@ -755,6 +756,44 @@ begin
 end;
 $$;
 
+-- Lecturer UI entry point (Supabase Auth JWT)
+create or replace function public.lecturer_import_roster(
+  p_module_id uuid,
+  p_rows jsonb,
+  p_filename text default null,
+  p_dry_run boolean default true,
+  p_deactivate_missing boolean default false,
+  p_excluded_rows int default 0
+) returns jsonb
+language sql security definer
+set search_path = public, pg_temp
+as $$
+  select app.import_roster(app.current_lecturer_id(), p_module_id, p_rows, p_filename, p_dry_run,
+                           p_deactivate_missing, p_excluded_rows)
+$$;
+
+-- Deployment CLI entry point (service role), attributed to the lecturer profile (§32.1 step 9)
+create or replace function public.api_admin_import_roster(
+  p_actor_profile_id uuid,
+  p_module_id uuid,
+  p_rows jsonb,
+  p_filename text default null,
+  p_dry_run boolean default true,
+  p_deactivate_missing boolean default false,
+  p_excluded_rows int default 0
+) returns jsonb
+language plpgsql security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if not exists (select 1 from public.profiles where id = p_actor_profile_id and role = 'lecturer' and is_active) then
+    raise exception 'Lecturer access required' using errcode = '42501';
+  end if;
+  return app.import_roster(p_actor_profile_id, p_module_id, p_rows, p_filename, p_dry_run,
+                           p_deactivate_missing, p_excluded_rows);
+end;
+$$;
+
 -- Tutor profile + code management (called by the admin Netlify Function with the
 -- service role after verifying the lecturer JWT; the function hashes the code).
 create or replace function public.api_admin_upsert_tutor(
@@ -821,6 +860,7 @@ revoke all on function public.api_tutor_session_detail(uuid, uuid) from public, 
 revoke all on function public.api_tutor_find_session(uuid, uuid, date, time) from public, anon, authenticated;
 revoke all on function public.api_tutor_save_attendance(uuid, uuid, uuid, date, time, jsonb) from public, anon, authenticated;
 revoke all on function public.api_admin_upsert_tutor(uuid, uuid, text, text, text) from public, anon, authenticated;
+revoke all on function public.api_admin_import_roster(uuid, uuid, jsonb, text, boolean, boolean, int) from public, anon, authenticated;
 
 grant execute on function public.api_tutor_context(uuid) to service_role;
 grant execute on function public.api_tutor_roster(uuid, uuid) to service_role;
@@ -829,6 +869,7 @@ grant execute on function public.api_tutor_session_detail(uuid, uuid) to service
 grant execute on function public.api_tutor_find_session(uuid, uuid, date, time) to service_role;
 grant execute on function public.api_tutor_save_attendance(uuid, uuid, uuid, date, time, jsonb) to service_role;
 grant execute on function public.api_admin_upsert_tutor(uuid, uuid, text, text, text) to service_role;
+grant execute on function public.api_admin_import_roster(uuid, uuid, jsonb, text, boolean, boolean, int) to service_role;
 
 revoke all on function public.lecturer_correct_attendance(uuid, jsonb) from public, anon;
 revoke all on function public.lecturer_set_apspace_status(uuid[], public.apspace_status) from public, anon;

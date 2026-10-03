@@ -64,7 +64,7 @@ describe('AttendanceMarker (§11.4, AC-004, AC-005, AC-011)', () => {
     await user.click(within(screen.getByRole('radiogroup', { name: 'Mei Ling Tan' })).getByLabelText(/Absent/));
     await user.clear(search);
     await user.type(search, 'ZAIN');
-    expect(rows().map((r) => r.cells[0].textContent)).toEqual(['Zainab Ismail']);
+    expect(rows().map((r) => (r as HTMLTableRowElement).cells[0].textContent)).toEqual(['Zainab Ismail']);
     await user.clear(search);
     expect(rows()).toHaveLength(3);
     expect(within(screen.getByRole('radiogroup', { name: 'Mei Ling Tan' })).getByLabelText(/Absent/)).toBeChecked();

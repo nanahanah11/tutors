@@ -165,5 +165,32 @@ begin
 end $$;
 
 reset role;
+
+-- Deployment CLI path: service role import attributed to the lecturer profile
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000bb', true) \g /dev/null
+do $$ begin
+  perform public.api_admin_import_roster(gen_random_uuid(), gen_random_uuid(), '[]', null, true, false, 0);
+  raise exception 'FAIL: authenticated executed api_admin_import_roster';
+exception when insufficient_privilege then null; end $$;
+do $$ begin
+  perform public.lecturer_import_roster((select id from public.modules limit 1), '[]', null, true, false, 0);
+  raise exception 'FAIL: non-lecturer imported roster';
+exception when insufficient_privilege then null; end $$;
+reset role;
+set local role service_role;
+do $$
+declare v jsonb;
+begin
+  v := public.api_admin_import_roster(
+    (select id from public.profiles where role = 'lecturer'),
+    (select id from public.modules where module_code = 'AAPP003-4-2-ISWE'),
+    jsonb_build_array(jsonb_build_object('student_id', 'TP200001', 'student_name', 'Cli Import', 'group_number', '8')),
+    'AAPP003_ISWE_Student_List.xlsx', false, false, 0);
+  assert (v ->> 'students_created')::int = 1, format('cli import: %s', v);
+  assert (select actor_name from public.audit_logs where action = 'roster_import' order by created_at desc limit 1) = 'Ms Aida',
+    'cli import attributed to lecturer';
+end $$;
+reset role;
 \echo '  lecturer RLS tests passed'
 rollback;

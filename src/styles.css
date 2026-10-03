@@ -213,7 +213,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .mark-group { display: inline-flex; gap: 0.5rem; }
 .mark-option { position: relative; }
 .mark-option input { position: absolute; opacity: 0; width: 1px; height: 1px; }
-.mark-option span {
+.mark-option > span {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; min-width: 104px; min-height: 44px;
   padding: 0.4rem 0.8rem; border: 2px solid var(--border); border-radius: 8px; cursor: pointer; font-weight: 700;
   background: var(--surface); color: var(--muted); user-select: none;
@@ -232,10 +232,10 @@ tr.unmarked td.student-name::after { content: ' • unmarked'; color: var(--pend
   .roster-table td { border: none; padding: 0; }
   .roster-table td.tp { grid-column: 1; }
   .roster-table td.marks { grid-column: 1 / -1; }
-  .mark-option span { min-width: 0; flex: 1; }
+  .mark-option > span { min-width: 0; flex: 1; }
   .mark-group { display: flex; width: 100%; }
   .mark-group .mark-option { flex: 1; display: flex; }
-  .mark-group .mark-option span { width: 100%; }
+  .mark-group .mark-option > span { width: 100%; }
 }
 
 /* ---------- modal ---------- */

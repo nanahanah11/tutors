@@ -163,7 +163,7 @@ export default function AdminImportPage() {
             <dt>Excluded – no tutorial group</dt><dd>{parsed.excluded.length}</dd>
             <dt>Rows requiring correction</dt><dd>{correction.length}</dd>
             <dt>Students per group</dt>
-            <dd>{Object.entries(parsed.groupCounts).sort((a, b) => Number(a[0]) - Number(b[0])).map(([g, n]) => `${g} (${n})`).join(', ') || '—'}</dd>
+            <dd>{groupSummary(scoped?.rows ?? parsed.rows) || '—'}</dd>
           </dl>
           {parsed.excluded.length > 0 && <IssueTable title="Excluded rows (no tutorial group – never silently assigned)" issues={parsed.excluded} />}
           {correction.length > 0 && <IssueTable title="Rows requiring correction (not imported)" issues={correction} />}
@@ -233,6 +233,15 @@ export default function AdminImportPage() {
       )}
     </div>
   );
+}
+
+function groupSummary(rows: Array<{ group_number: string }>): string {
+  const counts = new Map<string, number>();
+  for (const r of rows) counts.set(r.group_number, (counts.get(r.group_number) ?? 0) + 1);
+  return [...counts.entries()]
+    .sort((a, b) => Number(a[0]) - Number(b[0]))
+    .map(([g, n]) => `${g} (${n})`)
+    .join(', ');
 }
 
 function Summary({ s, excluded }: { s: ImportSummary; excluded: number }) {

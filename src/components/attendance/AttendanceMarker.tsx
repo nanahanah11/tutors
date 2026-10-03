@@ -141,7 +141,7 @@ export function AttendanceMarker({
                       <button
                         type="button"
                         className="btn-link small"
-                        style={{ marginTop: '0.35rem' }}
+                        style={{ display: 'block', marginTop: '0.35rem' }}
                         onClick={() => setOpenRemarks({ ...openRemarks, [s.id]: true })}
                       >
                         Add remark
@@ -150,6 +150,7 @@ export function AttendanceMarker({
                     {onRemarksChange && showRemark && (
                       <input
                         className="remark-input"
+                        style={{ display: 'block', maxWidth: 440 }}
                         aria-label={`Remark for ${s.full_name}`}
                         placeholder="Remark (optional)"
                         maxLength={500}

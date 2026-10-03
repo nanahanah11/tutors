@@ -367,7 +367,7 @@ function AuditValues({ log }: { log: AuditLog }) {
         .slice(0, 10)
         .map(([k, val]) => {
           const old = log.old_values?.[k];
-          const changed = log.old_values && log.new_values && JSON.stringify(old) !== JSON.stringify(val);
+          const changed = log.old_values && log.new_values && old !== undefined && JSON.stringify(old) !== JSON.stringify(val);
           return `${k}: ${changed ? `${JSON.stringify(old)} → ` : ''}${JSON.stringify(val)}`;
         })
         .join(' · ')}
