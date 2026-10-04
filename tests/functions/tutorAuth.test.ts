@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createTutorApiHandler, createTutorAuthHandler } from '../../netlify/functions/_lib/handlers';
-import { readBody, cookieFrom, makeBackend, req, testConfig, type FakeBackend } from './fakeBackend';
+import { AMIR_PASSWORD, MAY_PASSWORD, readBody, cookieFrom, makeBackend, req, testConfig, type FakeBackend } from './fakeBackend';
 
 let backend: FakeBackend;
 let login: ReturnType<typeof createTutorAuthHandler>;
 let api: ReturnType<typeof createTutorApiHandler>;
 
+const maySwapCase = (p: string) => p.replace(/./g, (c) => (c === c.toUpperCase() ? c.toLowerCase() : c.toUpperCase()));
 const post = (path: string, body: unknown, extra: RequestInit & { ip?: string } = {}) =>
   req(path, { method: 'POST', body: JSON.stringify(body), ...extra });
 
@@ -16,9 +17,9 @@ beforeEach(async () => {
   api = createTutorApiHandler(deps);
 });
 
-describe('tutor code validation (AC-001, AC-015, FR-AUTH-004..009)', () => {
-  it('resolves a valid code to exactly one tutor and sets an HttpOnly session cookie', async () => {
-    const res = await login(post('/api/tutor-auth/login', { code: ' may123 ' }));
+describe('tutor username/password login (AC-001, AC-015, FR-AUTH-004..009)', () => {
+  it('resolves valid credentials to exactly one tutor and sets an HttpOnly session cookie', async () => {
+    const res = await login(post('/api/tutor-auth/login', { username: ' may ', password: MAY_PASSWORD }));
     expect(res.status).toBe(200);
     const body = await readBody(res);
     expect(body.tutor).toEqual({ id: backend.tutors[0].id, full_name: 'May' });
@@ -28,14 +29,18 @@ describe('tutor code validation (AC-001, AC-015, FR-AUTH-004..009)', () => {
     expect(cookie).toContain('SameSite=Strict');
     expect(cookie).toContain('Secure');
     expect(cookie).not.toMatch(/Max-Age|Expires/); // browser-session cookie
-    expect(JSON.stringify(body)).not.toContain('MAY123'); // code never echoed
+    expect(JSON.stringify(body)).not.toContain(MAY_PASSWORD); // password never echoed
   });
 
-  it('rejects wrong, malformed and inactive codes with the same generic error and no data', async () => {
-    for (const code of ['MAY124', 'hello', 'AMIR456', '', 'ZED123']) {
-      const res = await login(post('/api/tutor-auth/login', { code }, { ip: `198.51.100.${code.length}` }));
+  it('rejects wrong password, unknown user and inactive tutor with the same generic error and no data', async () => {
+    const attempts: Array<[string, string]> = [
+      ['MAY', 'Maple483'], ['MAY', 'hello'], ['MAY', maySwapCase(MAY_PASSWORD)], ['AMIR', AMIR_PASSWORD],
+      ['', ''], ['MAY', ''], ['ZED', MAY_PASSWORD], ['may123', MAY_PASSWORD],
+    ];
+    for (const [i, [username, password]] of attempts.entries()) {
+      const res = await login(post('/api/tutor-auth/login', { username, password }, { ip: `198.51.100.${i + 1}` }));
       expect(res.status).toBe(401);
-      expect(await readBody(res)).toEqual({ ok: false, error: 'INVALID_CODE' });
+      expect(await readBody(res)).toEqual({ ok: false, error: 'INVALID_CREDENTIALS' });
       expect(res.headers.get('set-cookie')).toBeNull();
     }
     expect(backend.calls).toHaveLength(0); // no roster/attendance queried
@@ -43,28 +48,28 @@ describe('tutor code validation (AC-001, AC-015, FR-AUTH-004..009)', () => {
 
   it('rate-limits repeated failures from one client (FR-AUTH-007)', async () => {
     for (let i = 0; i < 5; i++) {
-      expect((await login(post('/api/tutor-auth/login', { code: `MAY00${i}` }))).status).toBe(401);
+      expect((await login(post('/api/tutor-auth/login', { username: 'MAY', password: `Wrong000${i}` }))).status).toBe(401);
     }
-    const blocked = await login(post('/api/tutor-auth/login', { code: 'MAY123' }));
+    const blocked = await login(post('/api/tutor-auth/login', { username: 'MAY', password: MAY_PASSWORD }));
     expect(blocked.status).toBe(429);
     expect((await readBody(blocked)).error).toBe('RATE_LIMITED');
     // window expires after 15 minutes
     backend.clock.now += 15 * 60 * 1000 + 1;
-    expect((await login(post('/api/tutor-auth/login', { code: 'MAY123' }))).status).toBe(200);
+    expect((await login(post('/api/tutor-auth/login', { username: 'MAY', password: MAY_PASSWORD }))).status).toBe(200);
   });
 
   it('rate-limits distributed guessing of one prefix', async () => {
     for (let i = 0; i < 10; i++) {
-      await login(post('/api/tutor-auth/login', { code: `MAY${String(900 + i)}` }, { ip: `192.0.2.${i}` }));
+      await login(post('/api/tutor-auth/login', { username: 'MAY', password: `Guess${900 + i}` }, { ip: `192.0.2.${i}` }));
     }
-    const res = await login(post('/api/tutor-auth/login', { code: 'MAY123' }, { ip: '192.0.2.200' }));
+    const res = await login(post('/api/tutor-auth/login', { username: 'MAY', password: MAY_PASSWORD }, { ip: '192.0.2.200' }));
     expect(res.status).toBe(429);
   });
 
   it('requires JSON POST (CSRF defence)', async () => {
-    const form = req('/api/tutor-auth/login', { method: 'POST', body: 'code=MAY123', headers: { 'content-type': 'application/x-www-form-urlencoded' } });
+    const form = req('/api/tutor-auth/login', { method: 'POST', body: `username=MAY&password=${MAY_PASSWORD}`, headers: { 'content-type': 'application/x-www-form-urlencoded' } });
     expect((await login(form)).status).toBe(403);
-    const cross = post('/api/tutor-auth/login', { code: 'MAY123' }, { headers: { origin: 'https://evil.example' } });
+    const cross = post('/api/tutor-auth/login', { username: 'MAY', password: MAY_PASSWORD }, { headers: { origin: 'https://evil.example' } });
     expect((await login(cross)).status).toBe(403);
   });
 
@@ -76,7 +81,7 @@ describe('tutor code validation (AC-001, AC-015, FR-AUTH-004..009)', () => {
 
 describe('tutor session (FR-AUTH-008, §15.2)', () => {
   async function session() {
-    const res = await login(post('/api/tutor-auth/login', { code: 'MAY123' }));
+    const res = await login(post('/api/tutor-auth/login', { username: 'MAY', password: MAY_PASSWORD }));
     return cookieFrom(res);
   }
 
@@ -125,7 +130,7 @@ describe('tutor session (FR-AUTH-008, §15.2)', () => {
     }
   });
 
-  it('revokes sessions when the tutor is deactivated or the code is regenerated', async () => {
+  it('revokes sessions when the tutor is deactivated or the password is changed', async () => {
     const cookie = await session();
     backend.tutors[0].tutor_code_hash = 'scrypt$1$1$1$AAAA$BBBB';
     expect((await api(req('/api/tutor/me', { headers: { cookie } }))).status).toBe(401);
@@ -140,7 +145,7 @@ describe('tutor attendance API authorization (§26.3, AC-014)', () => {
   const STUDENT = 'a5f9d3c8-7a12-4b4e-9d1f-2c6e8b9a0f11';
   let cookie: string;
   beforeEach(async () => {
-    cookie = cookieFrom(await login(post('/api/tutor-auth/login', { code: 'MAY123' })));
+    cookie = cookieFrom(await login(post('/api/tutor-auth/login', { username: 'MAY', password: MAY_PASSWORD })));
   });
   const json = (path: string, method: string, body: unknown) =>
     req(path, { method, body: JSON.stringify(body), headers: { cookie } });

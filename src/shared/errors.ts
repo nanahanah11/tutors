@@ -1,6 +1,6 @@
 /** Friendly messages for API error codes (PRD §20). Never expose internals. */
 export const ERROR_MESSAGES: Record<string, string> = {
-  INVALID_CODE: 'That tutor code is invalid or inactive. Please check the code and try again.',
+  INVALID_CREDENTIALS: 'The username or password is incorrect, or the account is inactive. Please check and try again.',
   RATE_LIMITED: 'Too many unsuccessful attempts. Please wait a few minutes before trying again.',
   UNAUTHENTICATED: 'Your session has expired. Please enter your tutor code again.',
   TUTOR_INACTIVE: 'Your tutor access is no longer active. Please contact Ms Aida.',

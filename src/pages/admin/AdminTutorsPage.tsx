@@ -1,8 +1,8 @@
-/** Lecturer: tutor profiles, access codes and tutor-group assignments (§7.1, §9.5, §11.8). */
+/** Lecturer: tutor profiles, login passwords and tutor-group assignments (§7.1, §9.5, §11.8). */
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { lecturerApi } from '../../services/lecturerApi';
 import type { Assignment, Profile, TutorialGroupOverview } from '../../types/db';
-import { prefixFromName, TUTOR_PREFIX_PATTERN } from '../../shared/tutorCode';
+import { TUTOR_USERNAME_PATTERN, usernameFromName } from '../../shared/tutorCode';
 import { formatTimestamp } from '../../shared/time';
 import { Alert, Modal, Spinner } from '../../components/ui';
 
@@ -13,8 +13,8 @@ export default function AdminTutorsPage() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [newTutor, setNewTutor] = useState({ full_name: '', prefix: '' });
-  const [issued, setIssued] = useState<{ name: string; code: string } | null>(null);
+  const [newTutor, setNewTutor] = useState({ full_name: '', username: '' });
+  const [issued, setIssued] = useState<{ name: string; username: string; password: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [assignForm, setAssignForm] = useState({ tutor_id: '', group_id: '', temporary: false, note: '' });
 
@@ -57,22 +57,22 @@ export default function AdminTutorsPage() {
 
   async function createTutor(e: FormEvent) {
     e.preventDefault();
-    const prefix = newTutor.prefix || prefixFromName(newTutor.full_name);
-    if (!TUTOR_PREFIX_PATTERN.test(prefix)) {
-      setError('Code prefix must be the tutor’s first name in 2–20 uppercase letters.');
+    const username = newTutor.username || usernameFromName(newTutor.full_name);
+    if (!TUTOR_USERNAME_PATTERN.test(username)) {
+      setError('Username must be the tutor’s first name in 2–20 capital letters.');
       return;
     }
-    const r = await run(() => lecturerApi.tutorCodeAction({ action: 'create', full_name: newTutor.full_name, prefix }));
+    const r = await run(() => lecturerApi.tutorCodeAction({ action: 'create', full_name: newTutor.full_name, username }));
     if (r) {
-      setIssued({ name: r.tutor.full_name, code: r.code });
-      setNewTutor({ full_name: '', prefix: '' });
+      setIssued({ name: r.tutor.full_name, username: r.tutor.tutor_code_prefix, password: r.password });
+      setNewTutor({ full_name: '', username: '' });
     }
   }
 
   async function regenerate(t: Profile) {
-    if (!window.confirm(`Generate a new code for ${t.full_name}? The old code stops working immediately and active sessions are signed out.`)) return;
-    const r = await run(() => lecturerApi.tutorCodeAction({ action: 'regenerate', tutor_id: t.id, prefix: t.tutor_code_prefix ?? prefixFromName(t.full_name) }));
-    if (r) setIssued({ name: r.tutor.full_name, code: r.code });
+    if (!window.confirm(`Generate a new password for ${t.full_name}? The old password stops working immediately and active sessions are signed out.`)) return;
+    const r = await run(() => lecturerApi.tutorCodeAction({ action: 'regenerate', tutor_id: t.id, username: t.tutor_code_prefix ?? usernameFromName(t.full_name) }));
+    if (r) setIssued({ name: r.tutor.full_name, username: r.tutor.tutor_code_prefix, password: r.password });
   }
 
   async function assign(e: FormEvent) {
@@ -92,8 +92,8 @@ export default function AdminTutorsPage() {
     <div>
       <div className="page-head">
         <div>
-          <h1>Tutors &amp; Access Codes</h1>
-          <p>Codes are tutor first name + 3 random digits (e.g. MAY123). Only a secure hash is stored – a code is shown once when generated.</p>
+          <h1>Tutors &amp; Passwords</h1>
+          <p>A tutor signs in with their username (their first name in capitals) and an 8-character password. Only a secure hash is stored – a password is shown once when generated.</p>
         </div>
       </div>
       {error && <Alert kind="error">{error}</Alert>}
@@ -104,14 +104,14 @@ export default function AdminTutorsPage() {
           <h2>Tutor profiles</h2>
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Tutor</th><th>Code format</th><th>Code</th><th>Assigned classes</th><th>Status</th><th>Actions</th></tr></thead>
+              <thead><tr><th>Tutor</th><th>Username</th><th>Password</th><th>Assigned classes</th><th>Status</th><th>Actions</th></tr></thead>
               <tbody>
                 {tutors.map((t) => {
                   const mine = assignments.filter((a) => a.tutor_profile_id === t.id);
                   return (
                     <tr key={t.id}>
                       <td><strong>{t.full_name}</strong><div className="small muted mono">{t.id}</div></td>
-                      <td className="mono">{t.tutor_code_prefix}###</td>
+                      <td className="mono">{t.tutor_code_prefix}</td>
                       <td>
                         {codeSet[t.id] === false ? (
                           <span className="badge badge-pending">Not generated</span>
@@ -141,13 +141,13 @@ export default function AdminTutorsPage() {
                       <td>
                         <div className="row" style={{ gap: '0.4rem' }}>
                           <button type="button" className="btn btn-sm btn-primary" disabled={busy || !t.is_active} onClick={() => regenerate(t)}>
-                            {codeSet[t.id] === false ? 'Generate code' : 'Regenerate code'}
+                            {codeSet[t.id] === false ? 'Generate password' : 'Reset password'}
                           </button>
                           <button
                             type="button"
                             className="btn btn-sm"
                             disabled={busy}
-                            onClick={() => run(() => lecturerApi.setTutorActive(t.id, !t.is_active), t.is_active ? 'Tutor deactivated – their code no longer works.' : 'Tutor reactivated.')}
+                            onClick={() => run(() => lecturerApi.setTutorActive(t.id, !t.is_active), t.is_active ? 'Tutor deactivated – their login no longer works.' : 'Tutor reactivated.')}
                           >
                             {t.is_active ? 'Deactivate' : 'Reactivate'}
                           </button>
@@ -193,25 +193,28 @@ export default function AdminTutorsPage() {
           <h2>Add tutor</h2>
           <div className="field"><label htmlFor="t-name">Tutor name</label>
             <input id="t-name" value={newTutor.full_name} onChange={(e) => setNewTutor({ ...newTutor, full_name: e.target.value })} required maxLength={100} /></div>
-          <div className="field"><label htmlFor="t-prefix">Code prefix</label>
-            <input id="t-prefix" value={newTutor.prefix} placeholder={prefixFromName(newTutor.full_name) || 'MAY'} onChange={(e) => setNewTutor({ ...newTutor, prefix: e.target.value.toUpperCase().replace(/[^A-Z]/g, '') })} />
+          <div className="field"><label htmlFor="t-prefix">Username</label>
+            <input id="t-prefix" value={newTutor.username} placeholder={usernameFromName(newTutor.full_name)} onChange={(e) => setNewTutor({ ...newTutor, username: e.target.value.toUpperCase().replace(/[^A-Z]/g, '') })} />
             <span className="hint">Defaults to the first name in capitals.</span></div>
-          <button type="submit" className="btn btn-primary" disabled={busy}>Create tutor &amp; generate code</button>
+          <button type="submit" className="btn btn-primary" disabled={busy}>Create tutor &amp; generate password</button>
         </form>
       </div>
 
       <Modal
         open={!!issued}
-        title="New tutor access code"
+        title="New tutor password"
         onClose={() => setIssued(null)}
-        footer={<button type="button" className="btn btn-primary" onClick={() => setIssued(null)}>I have recorded the code</button>}
+        footer={<button type="button" className="btn btn-primary" onClick={() => setIssued(null)}>I have recorded the password</button>}
       >
         {issued && (
           <>
-            <p>Share this code privately with <strong>{issued.name}</strong> only. It will not be shown again.</p>
-            <p style={{ fontSize: '2rem', fontWeight: 800, letterSpacing: '0.15em', textAlign: 'center' }} className="mono">{issued.code}</p>
+            <p>Share these login details privately with <strong>{issued.name}</strong> only. The password will not be shown again.</p>
+            <dl className="kv">
+              <dt>Username</dt><dd className="mono">{issued.username}</dd>
+              <dt>Password</dt><dd className="mono" style={{ fontSize: '1.6rem', fontWeight: 800, letterSpacing: '0.12em' }}>{issued.password}</dd>
+            </dl>
             <div className="row" style={{ justifyContent: 'center' }}>
-              <button type="button" className="btn" onClick={() => navigator.clipboard?.writeText(issued.code)}>Copy code</button>
+              <button type="button" className="btn" onClick={() => navigator.clipboard?.writeText(`Username: ${issued.username}\nPassword: ${issued.password}`)}>Copy login details</button>
             </div>
           </>
         )}

@@ -55,9 +55,9 @@ for _ in $(seq 1 40); do curl -sf "http://localhost:$PORT/" >/dev/null && break;
 export VITE_SUPABASE_URL=http://localhost:$PORT SUPABASE_SERVICE_ROLE_KEY="$SERVICE" TUTOR_CODE_PEPPER=e2e-pepper-0123456789
 echo "▶ CLI: import roster (preview + commit)"
 npx tsx scripts/import-roster.ts tests/e2e/fixtures/cli_roster.csv --module CT046-3-2-SDM --commit | tail -6
-echo "▶ CLI: generate tutor codes"
-npx tsx scripts/generate-tutor-codes.ts | tee "$OUT/codes.txt" | sed -E 's/[A-Z]+[0-9]{3}$/<code hidden>/'
-grep -Eo 'MAY[0-9]{3}' "$OUT/codes.txt" | head -1 | xargs -I{} printf '{"code":"%s"}' {} > "$OUT/maycode.json"
+echo "▶ CLI: generate tutor passwords"
+npx tsx scripts/generate-tutor-passwords.ts | tee "$OUT/passwords.txt" | sed -E 's/[A-Za-z2-9]{8}$/<hidden>/'
+awk '$2=="MAY" {printf "{\"username\":\"%s\",\"password\":\"%s\"}", $2, $3}' "$OUT/passwords.txt" > "$OUT/may-login.json"
 "${P[@]}" -c "delete from tutor_code_attempts"
 
 export E2E_OUT="$OUT" E2E_DB="$DB"

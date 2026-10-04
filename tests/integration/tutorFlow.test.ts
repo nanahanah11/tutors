@@ -18,8 +18,8 @@ d('tutor attendance end-to-end through the API boundary', () => {
   let login: ReturnType<typeof createTutorAuthHandler>;
   let api: ReturnType<typeof createTutorApiHandler>;
   let admin: ReturnType<typeof createAdminTutorsHandler>;
-  let mayCode = '';
-  let amirCode = '';
+  let mayPassword = '';
+  let amirPassword = '';
   let mayCookie = '';
   let amirCookie = '';
   const ids: Record<string, string> = {};
@@ -51,32 +51,31 @@ d('tutor attendance end-to-end through the API boundary', () => {
   const post = (path: string, b: unknown, extra: RequestInit & { ip?: string } = {}) =>
     req(path, { method: 'POST', body: JSON.stringify(b), ...extra });
 
-  it('lecturer generates private codes for May and Amir (stored hashed)', async () => {
-    for (const [prefix, id] of [['MAY', ids.MAY], ['AMIR', ids.AMIR]]) {
-      const res = await admin(post('/api/admin/tutors', { action: 'regenerate', tutor_id: id, prefix }, { headers: { authorization: 'Bearer aida@apu.edu.my' } }));
+  it('lecturer generates private passwords for May and Amir (stored hashed)', async () => {
+    for (const [username, id] of [['MAY', ids.MAY], ['AMIR', ids.AMIR]]) {
+      const res = await admin(post('/api/admin/tutors', { action: 'regenerate', tutor_id: id, username }, { headers: { authorization: 'Bearer aida@apu.edu.my' } }));
       const b = await readBody(res);
       expect(res.status).toBe(200);
-      expect(b.code).toMatch(new RegExp(`^${prefix}\\d{3}$`));
-      if (prefix === 'MAY') mayCode = b.code;
-      else amirCode = b.code;
+      expect(b.password).toMatch(/^[A-Za-z2-9]{8}$/);
+      if (username === 'MAY') mayPassword = b.password;
+      else amirPassword = b.password;
     }
     const { rows } = await pool.query(`select tutor_code_hash from profiles where id = $1`, [ids.MAY]);
     expect(rows[0].tutor_code_hash).toMatch(/^scrypt\$/);
-    expect(rows[0].tutor_code_hash).not.toContain(mayCode);
+    expect(rows[0].tutor_code_hash).not.toContain(mayPassword);
     const audit = await pool.query(`select count(*)::int n from audit_logs where action = 'tutor_code_generated'`);
     expect(audit.rows[0].n).toBeGreaterThanOrEqual(2);
   });
 
   it('AC-015: invalid code reveals nothing; AC-001: valid code identifies May', async () => {
-    const wrong = mayCode.replace(/\d{3}$/, (d) => String((Number(d) + 1) % 1000).padStart(3, '0'));
-    const bad = await login(post('/api/tutor-auth/login', { code: wrong }, { ip: '10.0.0.9' }));
+    const bad = await login(post('/api/tutor-auth/login', { username: 'MAY', password: `${mayPassword.slice(0, 7)}x` }, { ip: '10.0.0.9' }));
     expect(bad.status).toBe(401);
-    expect(await readBody(bad)).toEqual({ ok: false, error: 'INVALID_CODE' });
+    expect(await readBody(bad)).toEqual({ ok: false, error: 'INVALID_CREDENTIALS' });
 
-    const ok = await login(post('/api/tutor-auth/login', { code: mayCode.toLowerCase() }));
+    const ok = await login(post('/api/tutor-auth/login', { username: 'may', password: mayPassword }));
     expect(ok.status).toBe(200);
     mayCookie = cookieFrom(ok);
-    amirCookie = cookieFrom(await login(post('/api/tutor-auth/login', { code: amirCode })));
+    amirCookie = cookieFrom(await login(post('/api/tutor-auth/login', { username: 'AMIR', password: amirPassword })));
 
     const me = await readBody(await api(req('/api/tutor/me', { headers: { cookie: mayCookie } })));
     expect(me.tutor.full_name).toBe('May');
@@ -165,16 +164,16 @@ d('tutor attendance end-to-end through the API boundary', () => {
     expect(amirs.sessions).toHaveLength(0);
   });
 
-  it('regenerating a code revokes the old code and existing sessions', async () => {
-    await admin(post('/api/admin/tutors', { action: 'regenerate', tutor_id: ids.MAY, prefix: 'MAY' }, { headers: { authorization: 'Bearer aida@apu.edu.my' } }));
+  it('resetting a password revokes the old password and existing sessions', async () => {
+    await admin(post('/api/admin/tutors', { action: 'regenerate', tutor_id: ids.MAY, username: 'MAY' }, { headers: { authorization: 'Bearer aida@apu.edu.my' } }));
     expect((await api(req('/api/tutor/me', { headers: { cookie: mayCookie } }))).status).toBe(401);
-    expect((await login(post('/api/tutor-auth/login', { code: mayCode }, { ip: '10.0.0.77' }))).status).toBe(401);
+    expect((await login(post('/api/tutor-auth/login', { username: 'MAY', password: mayPassword }, { ip: '10.0.0.77' }))).status).toBe(401);
   });
 
   it('AC-015: repeated invalid attempts are rate-limited', async () => {
     let last = 0;
     for (let i = 0; i < 6; i++) {
-      last = (await login(post('/api/tutor-auth/login', { code: `ARYA00${i}` }, { ip: '10.9.9.9' }))).status;
+      last = (await login(post('/api/tutor-auth/login', { username: 'ARYA', password: `Wrong000${i}` }, { ip: '10.9.9.9' }))).status;
     }
     expect(last).toBe(429);
   });

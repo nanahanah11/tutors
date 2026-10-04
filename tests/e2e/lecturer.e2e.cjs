@@ -31,19 +31,20 @@ const session = {
     const items = await page.locator('nav[aria-label="Lecturer"] a').allInnerTexts();
     if (items.join('|') !== 'Dashboard|Students') throw new Error(items.join('|'));
   });
-  let code;
-  await step('regenerate May code from Tutors page (shown once)', async () => {
+  let password;
+  await step('reset the May password from the Tutors page (shown once)', async () => {
     await page.goto(`${base}/lecturer/tutors`);
     await page.getByRole('heading', { name: 'Tutor profiles' }).waitFor();
     page.once('dialog', (d) => d.accept());
-    const row = page.locator('tr', { hasText: 'MAY###' });
-    await row.getByRole('button', { name: /Regenerate code|Generate code/ }).click();
+    const row = page.locator('tr', { hasText: 'MAY' });
+    await row.getByRole('button', { name: /Reset password|Generate password/ }).click();
     const dlg = page.locator('dialog.modal');
-    await dlg.getByText('New tutor access code').waitFor();
-    code = (await dlg.locator('p.mono').innerText()).trim();
-    if (!/^MAY\d{3}$/.test(code)) throw new Error(code);
+    await dlg.getByText('New tutor password').waitFor();
+    if ((await dlg.locator('dd.mono').first().innerText()).trim() !== 'MAY') throw new Error('username not shown');
+    password = (await dlg.locator('dd.mono').nth(1).innerText()).trim();
+    if (!/^[A-Za-z2-9]{8}$/.test(password)) throw new Error('bad password: ' + password);
     await page.screenshot({ path: `${SP}/10-code-modal.png` });
-    await dlg.getByRole('button', { name: 'I have recorded the code' }).click();
+    await dlg.getByRole('button', { name: 'I have recorded the password' }).click();
   });
   await step('assign Arya temporary cover of SDM-T-38', async () => {
     await page.selectOption('#a-tutor', { label: 'Arya' });
@@ -53,8 +54,8 @@ const session = {
     await page.getByText('Assigned to CT046-3-2-SDM-T-38.').waitFor();
     await page.screenshot({ path: `${SP}/11-tutors.png`, fullPage: true });
   });
-  await step('tutor saves attendance via API using new code', async () => {
-    const r1 = await fetch(`${base}/api/tutor-auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code }) });
+  await step('tutor saves attendance via API using the new password', async () => {
+    const r1 = await fetch(`${base}/api/tutor-auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username: 'MAY', password }) });
     if (r1.status !== 200) throw new Error('login ' + r1.status);
     const cookie = r1.headers.get('set-cookie').split(';')[0];
     const me = await (await fetch(`${base}/api/tutor/me`, { headers: { cookie } })).json();

@@ -17,7 +17,7 @@
     "test:watch": "vitest",
     "test:db": "bash supabase/tests/run_local.sh",
     "test:e2e": "bash tests/e2e/run.sh",
-    "codes:generate": "tsx scripts/generate-tutor-codes.ts",
+    "passwords:generate": "tsx scripts/generate-tutor-passwords.ts",
     "bootstrap": "tsx scripts/bootstrap.ts",
     "import:roster": "tsx scripts/import-roster.ts"
   },

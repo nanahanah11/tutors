@@ -1,8 +1,10 @@
 import type { Backend, TutorRecord } from '../../netlify/functions/_lib/backend';
 import type { ServerConfig } from '../../netlify/functions/_lib/config';
-import { hashTutorCode } from '../../netlify/functions/_lib/codeHash';
+import { hashPassword } from '../../netlify/functions/_lib/codeHash';
 
 export const PEPPER = 'test-pepper-0123456789';
+export const MAY_PASSWORD = 'Maple482';
+export const AMIR_PASSWORD = 'Amir4567';
 
 export const testConfig: ServerConfig = {
   supabaseUrl: 'http://localhost',
@@ -26,9 +28,9 @@ export async function makeBackend(): Promise<FakeBackend> {
   const clock = { now: Date.parse('2026-10-03T02:00:00Z') };
   const tutors: TutorRecord[] = [
     { id: '11111111-1111-4111-8111-111111111111', full_name: 'May', tutor_code_prefix: 'MAY',
-      tutor_code_hash: await hashTutorCode('MAY123', PEPPER), is_active: true },
+      tutor_code_hash: await hashPassword(MAY_PASSWORD, PEPPER), is_active: true },
     { id: '22222222-2222-4222-8222-222222222222', full_name: 'Amir', tutor_code_prefix: 'AMIR',
-      tutor_code_hash: await hashTutorCode('AMIR456', PEPPER), is_active: false },
+      tutor_code_hash: await hashPassword(AMIR_PASSWORD, PEPPER), is_active: false },
   ];
   const fb: FakeBackend = {
     tutors,

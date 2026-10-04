@@ -48,10 +48,10 @@ export interface SaveRecord {
 }
 
 export const tutorApi = {
-  login: (code: string) =>
+  login: (username: string, password: string) =>
     call<{ ok: true; tutor: { id: string; full_name: string } }>('/api/tutor-auth/login', {
       method: 'POST',
-      body: JSON.stringify({ code }),
+      body: JSON.stringify({ username, password }),
     }),
   logout: () => call<{ ok: true }>('/api/tutor-auth/logout', { method: 'POST', body: '{}' }),
   me: () => call<TutorContext>('/api/tutor/me'),

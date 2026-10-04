@@ -1,6 +1,6 @@
 /**
- * Request handlers for the tutor-code flow, tutor attendance API and lecturer
- * tutor-code administration. Pure functions of (Request, deps) so they can be
+ * Request handlers for tutor username/password login, the tutor attendance API and lecturer
+ * tutor-password administration. Pure functions of (Request, deps) so they can be
  * unit/authorization tested without Netlify or Supabase.
  */
 import type { Backend, TutorRecord } from './backend';
@@ -18,9 +18,9 @@ import {
   withCookie,
 } from './http';
 import { issueToken, TUTOR_COOKIE, verifyToken } from './tokens';
-import { dummyVerify, generateTutorCode, hashFingerprint, hashTutorCode, verifyTutorCode } from './codeHash';
+import { dummyVerify, generateTutorPassword, hashFingerprint, hashPassword, verifyPassword } from './codeHash';
 import { DEFAULT_RATE_LIMIT, isBlocked, retryAfterSeconds, type RateLimitPolicy } from './rateLimit';
-import { isValidTutorCodeFormat, normalizeTutorCode, tutorCodePrefix, TUTOR_PREFIX_PATTERN } from '../../../src/shared/tutorCode';
+import { isValidUsername, normalizeUsername, TUTOR_USERNAME_PATTERN } from '../../../src/shared/tutorCode';
 import { isValidDate, isValidTime } from '../../../src/shared/time';
 
 export interface Deps {
@@ -57,7 +57,7 @@ function fromRpc(result: Record<string, unknown>, extraOk: Record<string, string
 }
 
 // ---------------------------------------------------------------------------
-// Tutor code login / logout  (/api/tutor-auth/login, /api/tutor-auth/logout)
+// Tutor username + password login / logout  (/api/tutor-auth/login, /api/tutor-auth/logout)
 // ---------------------------------------------------------------------------
 export function createTutorAuthHandler(deps: Deps): Handler {
   const policy = deps.rateLimit ?? DEFAULT_RATE_LIMIT;
@@ -72,14 +72,15 @@ export function createTutorAuthHandler(deps: Deps): Handler {
     }
     if (!url.pathname.endsWith('/login')) return error(404, 'NOT_FOUND');
 
-    let body: { code?: unknown };
+    let body: { username?: unknown; password?: unknown };
     try {
-      body = (await readJson(req, 2048)) as { code?: unknown };
+      body = (await readJson(req, 2048)) as { username?: unknown; password?: unknown };
     } catch {
       return error(400, 'INVALID_PAYLOAD');
     }
-    const code = normalizeTutorCode(typeof body.code === 'string' ? body.code : '');
-    const prefix = tutorCodePrefix(code);
+    const username = normalizeUsername(typeof body.username === 'string' ? body.username : '');
+    const password = typeof body.password === 'string' ? body.password : '';
+    const prefix = isValidUsername(username) ? username : null;
     const client = clientHash(req, clientIp);
 
     try {
@@ -91,10 +92,10 @@ export function createTutorAuthHandler(deps: Deps): Handler {
       }
 
       let tutor: TutorRecord | null = null;
-      if (prefix && isValidTutorCodeFormat(code)) {
+      if (prefix && password.length > 0 && password.length <= 128) {
         const candidates = await deps.backend.findActiveTutorsByPrefix(prefix);
         for (const c of candidates) {
-          if (await verifyTutorCode(code, c.tutor_code_hash, deps.config.codePepper)) {
+          if (await verifyPassword(password, c.tutor_code_hash, deps.config.codePepper)) {
             tutor = c;
             break;
           }
@@ -106,8 +107,8 @@ export function createTutorAuthHandler(deps: Deps): Handler {
 
       await deps.backend.recordAttempt({ clientHash: client, prefix, success: !!tutor });
       if (!tutor) {
-        // Same response for unknown, wrong and inactive codes (FR-AUTH-009, §20.1)
-        return error(401, 'INVALID_CODE');
+        // Same response for unknown user, wrong password and inactive tutor (FR-AUTH-009, §20.1)
+        return error(401, 'INVALID_CREDENTIALS');
       }
 
       const t = now(deps);
@@ -143,7 +144,7 @@ async function authenticateTutor(
   });
   if (!check.ok) return withCookie(error(401, 'UNAUTHENTICATED'), clearSessionCookie(secure));
   const tutor = await deps.backend.getTutor(check.payload.sub);
-  // Deactivated tutor or regenerated code => existing sessions are revoked.
+  // Deactivated tutor or changed password => existing sessions are revoked.
   if (!tutor || !tutor.is_active || hashFingerprint(tutor.tutor_code_hash) !== check.payload.fp) {
     return withCookie(error(401, 'UNAUTHENTICATED'), clearSessionCookie(secure));
   }
@@ -314,26 +315,26 @@ export function createAdminTutorsHandler(deps: Deps): Handler {
       }
       const action = body.action;
       const fullName = typeof body.full_name === 'string' ? body.full_name.trim() : '';
-      const prefix = typeof body.prefix === 'string' ? body.prefix.trim().toUpperCase() : '';
+      const username = typeof body.username === 'string' ? body.username.trim().toUpperCase() : '';
       const tutorId = typeof body.tutor_id === 'string' ? body.tutor_id : null;
 
       if (action !== 'create' && action !== 'regenerate') return error(400, 'INVALID_PAYLOAD');
       if (action === 'create' && (!fullName || fullName.length > 100)) return error(422, 'INVALID_PAYLOAD');
       if (action === 'regenerate' && (!tutorId || !UUID_PATTERN.test(tutorId))) return error(422, 'INVALID_PAYLOAD');
-      if (!TUTOR_PREFIX_PATTERN.test(prefix)) return error(422, 'INVALID_PAYLOAD', { field: 'prefix' });
+      if (!TUTOR_USERNAME_PATTERN.test(username)) return error(422, 'INVALID_PAYLOAD', { field: 'username' });
 
-      // Generate MAY### style code, hash it, store only the hash; return plaintext ONCE.
-      const code = generateTutorCode(prefix);
-      const hash = await hashTutorCode(code, deps.config.codePepper);
+      // Generate an 8-character password, hash it, store only the hash; return plaintext ONCE.
+      const password = generateTutorPassword();
+      const hash = await hashPassword(password, deps.config.codePepper);
       const result = await deps.backend.rpc<Record<string, unknown>>('api_admin_upsert_tutor', {
         p_actor_profile_id: lecturer.id,
         p_tutor_profile_id: action === 'regenerate' ? tutorId : null,
         p_full_name: fullName || null,
-        p_code_prefix: prefix,
+        p_code_prefix: username,
         p_code_hash: hash,
       });
       if (result.ok === false) return fromRpc(result);
-      return json(200, { ...result, code });
+      return json(200, { ...result, password });
     } catch (e) {
       logErr(deps, 'admin tutors failed', e);
       return error(500, 'SERVER_ERROR');

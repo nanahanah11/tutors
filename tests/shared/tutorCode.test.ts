@@ -1,34 +1,57 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildTutorCode,
-  isValidTutorCodeFormat,
-  normalizeTutorCode,
-  prefixFromName,
-  tutorCodePrefix,
+  PASSWORD_ALPHABET,
+  PASSWORD_LENGTH,
+  generatePassword,
+  isValidPasswordFormat,
+  isValidUsername,
+  normalizeUsername,
+  usernameFromName,
 } from '../../src/shared/tutorCode';
 
-describe('tutor code format (FR-AUTH-003)', () => {
-  it.each(['MAY123', 'AMIR007', 'ARYA999', 'LATIFA000'])('accepts %s', (c) => {
-    expect(isValidTutorCodeFormat(c)).toBe(true);
+describe('tutor username', () => {
+  it.each(['MAY', 'AMIR', 'ARYA', 'LATIFA'])('accepts %s', (u) => expect(isValidUsername(u)).toBe(true));
+  it.each(['M', 'may', 'MAY1', 'MAY 1', 'MAY-1', ''])('rejects %s', (u) => expect(isValidUsername(u)).toBe(false));
+  it('is case-insensitive and ignores spaces', () => {
+    expect(normalizeUsername('  may ')).toBe('MAY');
   });
-  it.each(['MAY12', 'MAY1234', 'may123', '123MAY', 'M123', 'MAY 123', 'MAY-123', ''])('rejects %s', (c) => {
-    expect(isValidTutorCodeFormat(c)).toBe(false);
+  it('derives from the first name', () => {
+    expect(usernameFromName('May')).toBe('MAY');
+    expect(usernameFromName('Latifa binti Hassan')).toBe('LATIFA');
+    expect(usernameFromName("Nur'ain Aziz")).toBe('NURAIN');
   });
-  it('normalises case and whitespace', () => {
-    expect(normalizeTutorCode('  may 123 ')).toBe('MAY123');
+});
+
+describe('tutor password generation', () => {
+  // Deterministic pseudo-random source for testing; production uses crypto.randomInt.
+  const seeded = (seed: number) => () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff);
+  const rng = (seed: number) => {
+    const next = seeded(seed);
+    return (max: number) => next() % max;
+  };
+
+  it('is exactly 8 characters from the unambiguous alphabet', () => {
+    for (let i = 1; i <= 200; i++) {
+      const p = generatePassword(rng(i));
+      expect(p).toHaveLength(PASSWORD_LENGTH);
+      expect(PASSWORD_LENGTH).toBe(8);
+      for (const ch of p) expect(PASSWORD_ALPHABET).toContain(ch);
+    }
   });
-  it('extracts the name prefix', () => {
-    expect(tutorCodePrefix('LATIFA042')).toBe('LATIFA');
-    expect(tutorCodePrefix('nope')).toBeNull();
+  it('always contains a lower-case letter, an upper-case letter and a digit', () => {
+    for (let i = 1; i <= 200; i++) {
+      const p = generatePassword(rng(i));
+      expect(p).toMatch(/[a-z]/);
+      expect(p).toMatch(/[A-Z]/);
+      expect(p).toMatch(/\d/);
+    }
   });
-  it('derives prefix from the first name', () => {
-    expect(prefixFromName('May')).toBe('MAY');
-    expect(prefixFromName('Latifa binti Hassan')).toBe('LATIFA');
-    expect(prefixFromName("Nur'ain Aziz")).toBe('NURAIN');
+  it('avoids look-alike characters', () => {
+    expect(PASSWORD_ALPHABET).not.toMatch(/[0O1lI]/);
   });
-  it('builds codes with exactly three digits', () => {
-    expect(buildTutorCode('MAY', () => 7)).toBe('MAY007');
-    expect(buildTutorCode('AMIR', () => 999)).toBe('AMIR999');
-    expect(() => buildTutorCode('may', () => 1)).toThrow();
+  it('validates the format', () => {
+    expect(isValidPasswordFormat('Abcd2345')).toBe(true);
+    expect(isValidPasswordFormat('Abcd234')).toBe(false);
+    expect(isValidPasswordFormat('Abcd 345')).toBe(false);
   });
 });

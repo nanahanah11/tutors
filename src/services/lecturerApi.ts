@@ -261,8 +261,8 @@ export const lecturerApi = {
     return unwrap(await supabase.from('tutor_group_assignments').update({ is_active: false }).eq('id', id).select().single());
   },
 
-  /** Tutor-code operations run in a Netlify Function (hashing needs server secrets). */
-  async tutorCodeAction(body: { action: 'create' | 'regenerate'; tutor_id?: string; full_name?: string; prefix: string }) {
+  /** Tutor-password operations run in a Netlify Function (hashing needs server secrets). */
+  async tutorCodeAction(body: { action: 'create' | 'regenerate'; tutor_id?: string; full_name?: string; username: string }) {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
     if (!token) throw new Error('Please sign in again.');
@@ -278,9 +278,9 @@ export const lecturerApi = {
     }
     const json = await res.json().catch(() => ({}));
     if (!res.ok || json.ok === false) {
-      throw new Error(json.error === 'PREFIX_IN_USE' ? 'Another active tutor already uses that code prefix.' : json.error ?? 'Request failed');
+      throw new Error(json.error === 'PREFIX_IN_USE' ? 'Another active tutor already uses that username.' : json.error ?? 'Request failed');
     }
-    return json as { ok: true; code: string; tutor: { id: string; full_name: string; tutor_code_prefix: string } };
+    return json as { ok: true; password: string; tutor: { id: string; full_name: string; tutor_code_prefix: string } };
   },
   async tutorCodeStatus(): Promise<Array<{ id: string; code_set: boolean }>> {
     const { data } = await supabase.auth.getSession();

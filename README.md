@@ -2,7 +2,7 @@
 
 Internal web application for recording **SDM (`CT046-3-2-SDM`)** and **ISWE (`AAPP003-4-2-ISWE`)** tutorial attendance at Asia Pacific University (APU), Malaysia. It implements [PRD v1.2](PRD.md).
 
-- **Tutors** (May, Amir, Arya, Latifa) enter a private code (`MAY###`), pick an assigned class, date and time, and mark each student Present or Absent. They can edit their own record only on the class date, in Malaysia time.
+- **Tutors** (May, Amir, Arya, Latifa) sign in with a username (their tutor ID: `MAY`, `AMIR`, `ARYA`, `LATIFA`) and a private 8-character password, pick an assigned class, date and time, and mark each student Present or Absent. They can edit their own record only on the class date, in Malaysia time.
 - **Ms Aida (lecturer)** reviews every saved session on one dashboard, corrects records, exports CSV, and tracks which sessions are still **Pending APSpace Entry** and which are **Keyed into APSpace**.
 
 APSpace entry stays manual. The system does not connect to APSpace (PRD §5).
@@ -14,7 +14,7 @@ APSpace entry stays manual. The system does not connect to APSpace (PRD §5).
 ```text
 Browser (React + TypeScript + Vite, hosted on Netlify)
  ├── Tutor screens ──► Netlify Functions (/api/tutor-auth/*, /api/tutor/*)
- │                       • validate tutor code (scrypt hash + pepper), rate limiting
+ │                       • validate username + password (scrypt hash + pepper), rate limiting
  │                       • HttpOnly, SameSite=Strict session cookie (4 h max, 60 min idle, browser-session)
  │                       • tutor id taken from the signed token only
  │                       └─► Supabase Postgres via service role → api_tutor_* SQL functions
@@ -22,7 +22,7 @@ Browser (React + TypeScript + Vite, hosted on Netlify)
  │                              same-day edit rule in Asia/Kuala_Lumpur, audit)
  └── Lecturer screens ─► Supabase Auth (email/password) + PostgREST with Row Level Security
                           • lecturer_* SQL functions for corrections, APSpace status, import
-                          • /api/admin/tutors (Netlify Function) to generate or regenerate tutor codes
+                          • /api/admin/tutors (Netlify Function) to generate or reset tutor passwords
 ```
 
 The security rules live at the server and database boundary (PRD §15.4, BR-021). Hiding a button in the browser is never the only protection:
@@ -36,7 +36,7 @@ The security rules live at the server and database boundary (PRD §15.4, BR-021)
 | Same-day tutor edits only | `class_date = (now() at time zone 'Asia/Kuala_Lumpur')::date` checked in SQL |
 | Tutors cannot change APSpace status or student data | The tutor API rejects unknown fields (`FORBIDDEN_FIELD`). There is no SQL path for it. |
 | No hard deletes | No `DELETE` grants. Records are soft-deactivated. `audit_logs` is append-only (trigger). |
-| Tutor codes never stored in plaintext | Only `scrypt$…` hashes are stored. The hash column cannot be read by browser roles. |
+| Tutor passwords never stored in plaintext | Only `scrypt$…` hashes are stored. The hash column cannot be read by browser roles. |
 | Secrets never in the browser | Only `VITE_SUPABASE_URL` and the publishable key are bundled. CI checks `dist/`. |
 
 ## Repository layout
@@ -44,7 +44,7 @@ The security rules live at the server and database boundary (PRD §15.4, BR-021)
 ```text
 src/
   shared/            pure domain logic used by the browser, the functions and the scripts
-                     (tutor code format, Malaysia time, roster sort/search/counts, import parser, CSV)
+                     (tutor username/password rules, Malaysia time, roster sort/search/counts, import parser, CSV)
   pages/             AccessPage, TutorDashboard, NewAttendancePage, TutorSessionPage,
                      LecturerLogin, LecturerDashboard, AttendanceDetailPage, admin/*
   components/        attendance marker, save confirmation, roster notice, layouts, UI parts
@@ -111,19 +111,19 @@ Copy `.env.example` to `.env` (never commit it). Fill in:
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Netlify + local | Publishable/anon key (browser-safe) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Netlify (Functions scope) + local scripts | **Server only** |
 | `TUTOR_SESSION_SECRET` | Netlify (Functions scope) | **Server only**, 32+ random characters (`openssl rand -base64 48`) |
-| `TUTOR_CODE_PEPPER` | Netlify (Functions scope) + local scripts | **Server only**, 16+ random characters. Keep it stable: changing it invalidates every tutor code. |
+| `TUTOR_CODE_PEPPER` | Netlify (Functions scope) + local scripts | **Server only**, 16+ random characters. Keep it stable: changing it invalidates every tutor password. |
 
-### 3. Lecturer account, tutor codes, rosters
+### 3. Lecturer account, tutor passwords, rosters
 
 ```bash
 npm ci
 npm run bootstrap -- --email <ms-aida-email> --name "Ms Aida"   # creates Auth user + lecturer profile
-npm run codes:generate                                            # prints MAY###, AMIR###, ARYA###, LATIFA### ONCE
+npm run passwords:generate                                        # prints each tutor's username + 8-character password ONCE
 npm run import:roster -- CT046_Student_List.xlsx AAPP003_ISWE_Student_List.xlsx            # preview
 npm run import:roster -- CT046_Student_List.xlsx AAPP003_ISWE_Student_List.xlsx --commit   # write
 ```
 
-`import:roster` checks the per-group counts against the PRD (SDM 38/39/40/41/42 = 44/35/42/46/11, ISWE 7/8/9 = 40/40/39). It also reports the one excluded ungrouped SDM row. Share each tutor code privately with that tutor only. Ms Aida can regenerate a code at any time under **Tutors & Codes**.
+`import:roster` checks the per-group counts against the PRD (SDM 38/39/40/41/42 = 44/35/42/46/11, ISWE 7/8/9 = 40/40/39). It also reports the one excluded ungrouped SDM row. Share each tutor's password privately with that tutor only. Ms Aida can reset a password at any time under **Tutors & Passwords** (`/lecturer/tutors`).
 
 ### 4. Netlify
 
@@ -134,8 +134,8 @@ npm run import:roster -- CT046_Student_List.xlsx AAPP003_ISWE_Student_List.xlsx 
 ### 5. Verify (checklist items 10–15)
 
 - Log in as Ms Aida. **Tutorial Groups** should show the expected active counts and assigned tutors.
-- As each tutor, enter the code and confirm only the assigned classes appear.
-- Try 6 wrong codes. The 6th attempt is blocked for 15 minutes.
+- As each tutor, sign in with username and password and confirm only the assigned classes appear.
+- Try 6 wrong passwords for one username. The 6th attempt is blocked for 15 minutes.
 - Save a test attendance and confirm it appears on the dashboard. Edit it the same day. Mark it Keyed into APSpace.
 
 ---
@@ -143,7 +143,7 @@ npm run import:roster -- CT046_Student_List.xlsx AAPP003_ISWE_Student_List.xlsx 
 ## Operating guide
 
 ### Tutors
-1. Open the site and enter your tutor code, for example `MAY123`.
+1. Open the site and sign in with your username (your tutor ID) and the 8-character password Ms Aida gave you.
 2. Select **New Attendance**, then choose the **Class / Subject**, the **Class Date** (defaults to today; future dates are blocked) and the **Class Time**.
 3. Mark every student **Present** or **Absent**. You can use **Mark All Present** or **Mark All Absent** and then change individual students. Search by name or TP number; your selections stay when you clear the search.
 4. **Save Attendance** stays disabled until every student is marked. Check the confirmation summary and absent list, then select **Confirm Save**.
@@ -153,9 +153,9 @@ npm run import:roster -- CT046_Student_List.xlsx AAPP003_ISWE_Student_List.xlsx 
 ### Ms Aida
 - **Dashboard**: newest sessions first. Filter by module, group, tutor, date range and APSpace status. Rows still pending APSpace entry have an amber marker. Select several pending rows to mark them keyed in together. **Export CSV (filtered)** downloads student-level rows.
 - **Session detail**: metadata (tutor, tutor profile ID, saved and updated times), totals, the full roster with remarks, **Edit / Correct**, **Export CSV**, **Print**, **Mark as Keyed into APSpace** (or revert) and the audit trail.
-- **Menu**: the lecturer menu currently shows only **Dashboard** and **Students**. The Tutorial Groups, Modules, Tutors & Codes, Import and Audit Log screens still exist and can be reopened at `/lecturer/groups`, `/lecturer/modules`, `/lecturer/tutors`, `/lecturer/import` and `/lecturer/audit`, or re-added to the menu in `src/components/access/LecturerLayout.tsx`.
+- **Menu**: the lecturer menu currently shows only **Dashboard** and **Students**. The Tutorial Groups, Modules, Tutors & Passwords, Import and Audit Log screens still exist and can be reopened at `/lecturer/groups`, `/lecturer/modules`, `/lecturer/tutors`, `/lecturer/import` and `/lecturer/audit`, or re-added to the menu in `src/components/access/LecturerLayout.tsx`.
 - **Students**: maintain master data. Deactivate instead of deleting; history is kept.
-- **Tutors & Codes**: add tutors, generate or regenerate codes (each code is shown once), deactivate tutors, and assign tutors to classes, including temporary cover.
+- **Tutors & Passwords**: add tutors, generate or reset passwords (each password is shown once), deactivate tutors, and assign tutors to classes, including temporary cover.
 - **Import**: upload an XLSX or CSV file, review the file check and server preview, then commit. **Audit Log**: every attendance, roster, assignment and code change.
 
 ### Semester rollover (PRD §32.3)

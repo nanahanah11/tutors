@@ -2,7 +2,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const fs = require('fs');
 const SP = process.env.E2E_OUT;
 const DB = process.env.E2E_DB;
-const code = JSON.parse(fs.readFileSync(`${SP}/maycode.json`)).code;
+const { username, password } = JSON.parse(fs.readFileSync(`${SP}/may-login.json`));
 // Tutor flow E2E (PRD §26.4 flows 1–4) against the local harness started by tests/e2e/run.sh
 const base = 'http://localhost:5179';
 (async () => {
@@ -13,23 +13,28 @@ const base = 'http://localhost:5179';
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   const step = async (name, fn) => { await fn(); console.log('✔', name); };
 
-  await step('protected route redirects to code entry', async () => {
+  await step('protected route redirects to login', async () => {
     await page.goto(`${base}/tutor`);
     await page.waitForURL(`${base}/`);
     if (await page.getByText('TP9').count()) throw new Error('student data visible');
   });
-  await step('code field has no placeholder example', async () => {
-    const ph = await page.getByLabel('Tutor Code').getAttribute('placeholder');
-    if (ph) throw new Error('placeholder: ' + ph);
+  await step('username and password fields have no placeholder example', async () => {
+    for (const label of ['Username', 'Password']) {
+      const ph = await page.getByLabel(label, { exact: true }).getAttribute('placeholder');
+      if (ph) throw new Error(`${label} placeholder: ${ph}`);
+    }
+    if ((await page.getByLabel('Password', { exact: true }).getAttribute('type')) !== 'password') throw new Error('password not masked');
   });
-  await step('invalid code shows friendly error', async () => {
-    await page.getByLabel('Tutor Code').fill('MAY000' === code ? 'MAY001' : 'MAY000');
-    await page.getByRole('button', { name: 'Continue' }).click();
-    await page.getByText('invalid or inactive').waitFor();
+  await step('wrong password shows friendly error', async () => {
+    await page.getByLabel('Username', { exact: true }).fill(username);
+    await page.getByLabel('Password', { exact: true }).fill(password.slice(0, 7) + 'x');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await page.getByText('username or password is incorrect').waitFor();
   });
-  await step('valid code opens tutor home with only May classes', async () => {
-    await page.getByLabel('Tutor Code').fill(code.toLowerCase());
-    await page.getByRole('button', { name: 'Continue' }).click();
+  await step('valid credentials open tutor home with only May classes', async () => {
+    await page.getByLabel('Username', { exact: true }).fill(username.toLowerCase());
+    await page.getByLabel('Password', { exact: true }).fill(password);
+    await page.getByRole('button', { name: 'Sign in' }).click();
     await page.getByRole('heading', { name: 'Welcome, May' }).waitFor();
     const txt = await page.locator('.class-list').innerText();
     if (!txt.includes('CT046-3-2-SDM-T-39') || !txt.includes('CT046-3-2-SDM-T-40') || txt.includes('T-41')) throw new Error(txt);

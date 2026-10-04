@@ -4,11 +4,12 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { tutorApi, ApiError } from '../services/tutorApi';
 import { useTutor } from '../hooks/useTutor';
 import { errorMessage } from '../shared/errors';
-import { normalizeTutorCode, isValidTutorCodeFormat } from '../shared/tutorCode';
+import { normalizeUsername } from '../shared/tutorCode';
 import { Alert } from '../components/ui';
 
 export default function AccessPage() {
-  const [code, setCode] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const { ctx, refresh } = useTutor();
@@ -23,22 +24,22 @@ export default function AccessPage() {
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (busy) return;
-    const normalized = normalizeTutorCode(code);
-    if (!isValidTutorCodeFormat(normalized)) {
-      setError('Enter your tutor code: your first name followed by 3 digits.');
+    const user = normalizeUsername(username);
+    if (!user || !password) {
+      setError('Enter your username and password.');
       return;
     }
     setBusy(true);
     setError(null);
     try {
-      await tutorApi.login(normalized);
+      await tutorApi.login(user, password);
       await refresh();
       navigate('/tutor', { replace: true });
     } catch (err) {
-      const code = err instanceof ApiError ? err.code : 'SERVER_ERROR';
+      const errCode = err instanceof ApiError ? err.code : 'SERVER_ERROR';
       const missing = err instanceof ApiError && Array.isArray(err.data.missing) ? (err.data.missing as string[]) : [];
-      setError(errorMessage(code) + (missing.length ? ` (Missing server settings: ${missing.join(', ')})` : ''));
-      setCode('');
+      setError(errorMessage(errCode) + (missing.length ? ` (Missing server settings: ${missing.join(', ')})` : ''));
+      setPassword('');
     } finally {
       setBusy(false);
     }
@@ -54,30 +55,39 @@ export default function AccessPage() {
         </div>
 
         <div className="card">
-          <h2>Tutor entry</h2>
+          <h2>Tutor login</h2>
           {expired && !error && <Alert kind="warn">{errorMessage('UNAUTHENTICATED')}</Alert>}
           {error && <Alert kind="error">{error}</Alert>}
           <form onSubmit={submit} noValidate>
             <div className="field">
-              <label htmlFor="tutor-code">Tutor Code</label>
+              <label htmlFor="tutor-username">Username</label>
               <input
-                id="tutor-code"
-                className="code-input"
-                value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                autoComplete="off"
+                id="tutor-username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value.toUpperCase())}
+                autoComplete="username"
                 autoCapitalize="characters"
                 spellCheck={false}
                 maxLength={24}
                 required
-                aria-describedby="tutor-code-hint"
               />
-              <span id="tutor-code-hint" className="hint">
-                Your first name followed by your 3 private digits. Do not share your code.
-              </span>
+              <span className="hint">Your tutor ID.</span>
+            </div>
+            <div className="field">
+              <label htmlFor="tutor-password">Password</label>
+              <input
+                id="tutor-password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                maxLength={64}
+                required
+              />
+              <span className="hint">The 8-character password given to you. Do not share it.</span>
             </div>
             <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }} disabled={busy}>
-              {busy ? 'Checking…' : 'Continue'}
+              {busy ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
 
