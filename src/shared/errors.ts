@@ -24,6 +24,7 @@ export const ERROR_MESSAGES: Record<string, string> = {
   PREFIX_IN_USE: 'Another active tutor already uses that code prefix.',
   SERVER_ERROR: 'Something went wrong on the server. Your data was not saved – please try again.',
   NETWORK_ERROR: 'Network problem – the request could not reach the server. Your data was not saved; please retry.',
+  CONFIG_ERROR: 'The server is not fully configured yet. Please tell Ms Aida.',
   CSRF: 'The request was blocked for security reasons. Please reload the page.',
 };
 

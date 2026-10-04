@@ -4,12 +4,17 @@
  *   POST /api/tutor-auth/logout
  */
 import type { Config, Context } from '@netlify/functions';
-import { loadConfig } from './_lib/config';
+import { configErrorResponse, loadConfig, type ServerConfig } from './_lib/config';
 import { supabaseBackend } from './_lib/supabaseBackend';
 import { createTutorAuthHandler } from './_lib/handlers';
 
 export default async (req: Request, context: Context) => {
-  const config = loadConfig();
+  let config: ServerConfig;
+  try {
+    config = loadConfig();
+  } catch (e) {
+    return configErrorResponse(e);
+  }
   return createTutorAuthHandler({ config, backend: supabaseBackend(config) })(req, context.ip);
 };
 

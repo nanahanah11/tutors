@@ -35,7 +35,9 @@ export default function AccessPage() {
       await refresh();
       navigate('/tutor', { replace: true });
     } catch (err) {
-      setError(errorMessage(err instanceof ApiError ? err.code : 'SERVER_ERROR'));
+      const code = err instanceof ApiError ? err.code : 'SERVER_ERROR';
+      const missing = err instanceof ApiError && Array.isArray(err.data.missing) ? (err.data.missing as string[]) : [];
+      setError(errorMessage(code) + (missing.length ? ` (Missing server settings: ${missing.join(', ')})` : ''));
       setCode('');
     } finally {
       setBusy(false);

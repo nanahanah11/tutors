@@ -12,24 +12,42 @@ export interface ServerConfig {
   secureCookies: boolean;
 }
 
-function required(name: string): string {
-  const v = process.env[name];
-  if (!v) throw new Error(`Missing required server environment variable ${name}`);
-  return v;
+export class ConfigError extends Error {
+  constructor(public missing: string[], message: string) {
+    super(message);
+  }
 }
 
-export function loadConfig(): ServerConfig {
-  const sessionSecret = required('TUTOR_SESSION_SECRET');
-  const codePepper = required('TUTOR_CODE_PEPPER');
-  if (sessionSecret.length < 32) throw new Error('TUTOR_SESSION_SECRET must be at least 32 characters');
-  if (codePepper.length < 16) throw new Error('TUTOR_CODE_PEPPER must be at least 16 characters');
+export function loadConfig(env: Record<string, string | undefined> = process.env): ServerConfig {
+  const missing = ['TUTOR_SESSION_SECRET', 'TUTOR_CODE_PEPPER', 'SUPABASE_SERVICE_ROLE_KEY'].filter((k) => !env[k]);
+  if (!env.SUPABASE_URL && !env.VITE_SUPABASE_URL) missing.push('VITE_SUPABASE_URL');
+  if (missing.length) {
+    throw new ConfigError(missing, `Missing required server environment variable(s): ${missing.join(', ')}`);
+  }
+  const sessionSecret = env.TUTOR_SESSION_SECRET as string;
+  const codePepper = env.TUTOR_CODE_PEPPER as string;
+  if (sessionSecret.length < 32) throw new ConfigError(['TUTOR_SESSION_SECRET'], 'TUTOR_SESSION_SECRET must be at least 32 characters');
+  if (codePepper.length < 16) throw new ConfigError(['TUTOR_CODE_PEPPER'], 'TUTOR_CODE_PEPPER must be at least 16 characters');
   return {
-    supabaseUrl: process.env.SUPABASE_URL || required('VITE_SUPABASE_URL'),
-    serviceRoleKey: required('SUPABASE_SERVICE_ROLE_KEY'),
+    supabaseUrl: (env.SUPABASE_URL || env.VITE_SUPABASE_URL) as string,
+    serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY as string,
     sessionSecret,
     codePepper,
-    sessionMaxAgeMs: Number(process.env.TUTOR_SESSION_MAX_HOURS || 4) * 60 * 60 * 1000,
-    sessionIdleMs: Number(process.env.TUTOR_SESSION_IDLE_MINUTES || 60) * 60 * 1000,
-    secureCookies: process.env.TUTOR_COOKIE_INSECURE !== 'true',
+    sessionMaxAgeMs: Number(env.TUTOR_SESSION_MAX_HOURS || 4) * 60 * 60 * 1000,
+    sessionIdleMs: Number(env.TUTOR_SESSION_IDLE_MINUTES || 60) * 60 * 1000,
+    secureCookies: env.TUTOR_COOKIE_INSECURE !== 'true',
   };
+}
+
+/**
+ * JSON 500 for a misconfigured deployment. Only variable NAMES are returned, never values,
+ * so an administrator can see what to fix straight from the browser.
+ */
+export function configErrorResponse(e: unknown): Response {
+  const missing = e instanceof ConfigError ? e.missing : [];
+  console.error('server configuration error', e instanceof Error ? e.message : e);
+  return new Response(JSON.stringify({ ok: false, error: 'CONFIG_ERROR', missing }), {
+    status: 500,
+    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
+  });
 }
