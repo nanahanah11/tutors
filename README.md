@@ -78,6 +78,15 @@ Student rosters are **not** in this repository, because they are personal data. 
 
 ---
 
+## Deployed instance
+
+| Item | Value |
+|---|---|
+| Supabase project | `apu-tutorial-attendance` (`gywcohjrtnctpbyfrcyy`, region ap-southeast-1) – migrations, seed and the initial rosters are applied |
+| Netlify site | `apu-tutorial-attendance` → https://apu-tutorial-attendance.netlify.app |
+| Netlify env vars set | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `TUTOR_SESSION_SECRET`, `TUTOR_CODE_PEPPER` |
+| Still to set by the project owner | `SUPABASE_SERVICE_ROLE_KEY` (Supabase → Project Settings → API Keys). It cannot be read through the Supabase connector, so it is never handled by Claude. |
+
 ## Deployment (PRD §32.1 go-live checklist)
 
 ### 1. Supabase

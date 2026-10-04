@@ -5,6 +5,8 @@
 
 [build.environment]
   NODE_VERSION = "22"
+  # These two values are public by design (bundled into the browser). Do not add server secrets here.
+  SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_URL,VITE_SUPABASE_PUBLISHABLE_KEY"
 
 [functions]
   node_bundler = "esbuild"
