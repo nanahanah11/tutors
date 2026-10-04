@@ -89,7 +89,18 @@ as $$
 $$;
 
 -- Parse and validate an attendance payload: [{student_id: uuid, status, remark?}]
--- Returns error code or null. Populates temp table _att_payload.
+-- Returns an error code or null. The normalised rows are kept in a transaction-local
+-- setting and read back through app.payload_rows() (no temp tables needed).
+create or replace function app.payload_rows()
+returns table (student_uuid uuid, status public.attendance_status, remark text)
+language sql stable security definer
+set search_path = public, pg_temp
+as $$
+  select x.student_uuid, x.status::public.attendance_status, x.remark
+  from jsonb_to_recordset(coalesce(nullif(current_setting('app.att_payload', true), ''), '[]')::jsonb)
+       as x(student_uuid uuid, status text, remark text)
+$$;
+
 create or replace function app.load_payload(p_records jsonb)
 returns text
 language plpgsql security definer
@@ -97,13 +108,11 @@ set search_path = public, pg_temp
 as $$
 declare
   v_elem jsonb;
+  v_id uuid;
+  v_seen uuid[] := '{}';
+  v_out jsonb := '[]'::jsonb;
 begin
-  create temp table if not exists _att_payload (
-    student_uuid uuid primary key,
-    status public.attendance_status not null,
-    remark text
-  ) on commit drop;
-  truncate _att_payload;
+  perform set_config('app.att_payload', '[]', true);
 
   if p_records is null or jsonb_typeof(p_records) <> 'array' then
     return 'INVALID_PAYLOAD';
@@ -118,18 +127,21 @@ begin
     if coalesce(v_elem ->> 'status', '') not in ('present', 'absent') then
       return 'UNMARKED_STUDENTS';
     end if;
-    if exists (select 1 from _att_payload where student_uuid = (v_elem ->> 'student_id')::uuid) then
+    v_id := (v_elem ->> 'student_id')::uuid;
+    if v_id = any (v_seen) then
       return 'DUPLICATE_STUDENT';
     end if;
     if length(coalesce(v_elem ->> 'remark', '')) > 500 then
       return 'INVALID_PAYLOAD';
     end if;
-    insert into _att_payload values (
-      (v_elem ->> 'student_id')::uuid,
-      (v_elem ->> 'status')::public.attendance_status,
-      nullif(btrim(coalesce(v_elem ->> 'remark', '')), '')
-    );
+    v_seen := v_seen || v_id;
+    v_out := v_out || jsonb_build_object(
+      'student_uuid', v_id,
+      'status', v_elem ->> 'status',
+      'remark', nullif(btrim(coalesce(v_elem ->> 'remark', '')), ''));
   end loop;
+
+  perform set_config('app.att_payload', v_out::text, true);
   return null;
 end;
 $$;
@@ -147,7 +159,7 @@ begin
   for r in
     select p.student_uuid, p.status, p.remark, s.student_id as tp, s.full_name,
            ar.id as record_id, ar.status as old_status, ar.remark as old_remark
-    from _att_payload p
+    from app.payload_rows() p
     join public.students s on s.id = p.student_uuid
     left join public.attendance_records ar
       on ar.attendance_session_id = p_session_id and ar.student_id = p.student_uuid
@@ -406,8 +418,8 @@ begin
 
     -- Payload must match the active roster exactly (BR-006, BR-008, §13.6)
     select count(*) into v_missing from app.group_roster(p_tutorial_group_id) g
-     where not exists (select 1 from _att_payload p where p.student_uuid = g.student_uuid);
-    select count(*) into v_extra from _att_payload p
+     where not exists (select 1 from app.payload_rows() p where p.student_uuid = g.student_uuid);
+    select count(*) into v_extra from app.payload_rows() p
      where not exists (select 1 from app.group_roster(p_tutorial_group_id) g where g.student_uuid = p.student_uuid);
     if v_extra > 0 then
       return jsonb_build_object('ok', false, 'error', 'NOT_IN_ROSTER', 'count', v_extra);
@@ -415,7 +427,7 @@ begin
     if v_missing > 0 then
       return jsonb_build_object('ok', false, 'error', 'UNMARKED_STUDENTS', 'count', v_missing);
     end if;
-    if not exists (select 1 from _att_payload) then
+    if not exists (select 1 from app.payload_rows()) then
       return jsonb_build_object('ok', false, 'error', 'EMPTY_ROSTER');
     end if;
 
@@ -437,9 +449,9 @@ begin
         'class_date', p_class_date,
         'class_time', to_char(p_class_time, 'HH24:MI'),
         'tutor', v_tutor.full_name,
-        'present', (select count(*) from _att_payload where status = 'present'),
-        'absent', (select count(*) from _att_payload where status = 'absent'),
-        'total', (select count(*) from _att_payload)));
+        'present', (select count(*) from app.payload_rows() where status = 'present'),
+        'absent', (select count(*) from app.payload_rows() where status = 'absent'),
+        'total', (select count(*) from app.payload_rows())));
 
     return jsonb_build_object('ok', true, 'created', true, 'session', app.session_json(v_session.id));
   end if;
@@ -462,8 +474,8 @@ begin
 
   -- Required: every active roster student. Allowed: active roster + already recorded students.
   select count(*) into v_missing from app.group_roster(v_session.tutorial_group_id) g
-   where not exists (select 1 from _att_payload p where p.student_uuid = g.student_uuid);
-  select count(*) into v_extra from _att_payload p
+   where not exists (select 1 from app.payload_rows() p where p.student_uuid = g.student_uuid);
+  select count(*) into v_extra from app.payload_rows() p
    where not exists (select 1 from app.group_roster(v_session.tutorial_group_id) g where g.student_uuid = p.student_uuid)
      and not exists (select 1 from public.attendance_records r
                      where r.attendance_session_id = v_session.id and r.student_id = p.student_uuid);
@@ -519,7 +531,7 @@ begin
   end if;
 
   -- Lecturer may correct recorded students and add currently enrolled (incl. inactive) students of the group.
-  select count(*) into v_extra from _att_payload p
+  select count(*) into v_extra from app.payload_rows() p
    where not exists (select 1 from public.attendance_records r
                      where r.attendance_session_id = v_session.id and r.student_id = p.student_uuid)
      and not exists (select 1 from public.group_enrolments e
@@ -583,6 +595,16 @@ $$;
 -- Roster import (PRD §18.3). Rows: [{student_id, student_name, group_number}] already
 -- normalised and pre-validated by the client; validated again here.
 -- p_dry_run = true -> returns the summary without writing (preview, §18.3.11).
+create or replace function app.import_rows()
+returns table (row_no int, student_id text, student_name text, group_id uuid, group_number text)
+language sql stable security definer
+set search_path = public, pg_temp
+as $$
+  select x.row_no, x.student_id, x.student_name, x.group_id, x.group_number
+  from jsonb_to_recordset(coalesce(nullif(current_setting('app.import_rows', true), ''), '[]')::jsonb)
+       as x(row_no int, student_id text, student_name text, group_id uuid, group_number text)
+$$;
+
 create or replace function app.import_roster(
   p_lecturer uuid,
   p_module_id uuid,
@@ -615,6 +637,8 @@ declare
   v_deactivated int := 0;
   v_valid int := 0;
   v_batch uuid;
+  v_seen text[] := '{}';
+  v_rows jsonb := '[]'::jsonb;
 begin
   if v_lecturer is null then
     raise exception 'Lecturer access required' using errcode = '42501';
@@ -629,10 +653,7 @@ begin
     return jsonb_build_object('ok', false, 'error', 'INVALID_PAYLOAD');
   end if;
 
-  create temp table if not exists _import_rows (
-    row_no int, student_id text primary key, student_name text, group_id uuid, group_number text
-  ) on commit drop;
-  truncate _import_rows;
+  perform set_config('app.import_rows', '[]', true);
 
   for v_elem in select * from jsonb_array_elements(p_rows) loop
     v_idx := v_idx + 1;
@@ -656,28 +677,31 @@ begin
                                                  'error', format('Tutorial group %s is not configured for %s', v_grp, v_module.module_code));
       continue;
     end if;
-    if exists (select 1 from _import_rows where student_id = v_sid) then
+    if v_sid = any (v_seen) then
       v_errors := v_errors || jsonb_build_object('row', coalesce((v_elem ->> 'row_no')::int, v_idx), 'student_id', v_sid,
                                                  'error', 'Duplicate student ID in file');
       continue;
     end if;
-    insert into _import_rows values (coalesce((v_elem ->> 'row_no')::int, v_idx), v_sid, v_name, v_group_id, v_grp);
+    v_seen := v_seen || v_sid;
+    v_rows := v_rows || jsonb_build_object('row_no', coalesce((v_elem ->> 'row_no')::int, v_idx), 'student_id', v_sid,
+                                           'student_name', v_name, 'group_id', v_group_id, 'group_number', v_grp);
     v_valid := v_valid + 1;
   end loop;
+  perform set_config('app.import_rows', v_rows::text, true);
 
   -- Compute effects (shared by preview and commit)
-  select count(*) into v_created from _import_rows i where not exists (select 1 from public.students s where s.student_id = i.student_id);
-  select count(*) into v_updated from _import_rows i join public.students s on s.student_id = i.student_id
+  select count(*) into v_created from app.import_rows() i where not exists (select 1 from public.students s where s.student_id = i.student_id);
+  select count(*) into v_updated from app.import_rows() i join public.students s on s.student_id = i.student_id
    where s.full_name <> i.student_name or not s.is_active;
-  select count(*) into v_unchanged from _import_rows i join public.students s on s.student_id = i.student_id
+  select count(*) into v_unchanged from app.import_rows() i join public.students s on s.student_id = i.student_id
    where s.full_name = i.student_name and s.is_active;
-  select count(*) into v_enrol_created from _import_rows i
+  select count(*) into v_enrol_created from app.import_rows() i
    where not exists (select 1 from public.group_enrolments e join public.students s on s.id = e.student_id
                      where s.student_id = i.student_id and e.tutorial_group_id = i.group_id);
-  select count(*) into v_enrol_reactivated from _import_rows i
+  select count(*) into v_enrol_reactivated from app.import_rows() i
    join public.students s on s.student_id = i.student_id
    join public.group_enrolments e on e.student_id = s.id and e.tutorial_group_id = i.group_id and not e.is_active;
-  select count(*) into v_enrol_moved from _import_rows i
+  select count(*) into v_enrol_moved from app.import_rows() i
    join public.students s on s.student_id = i.student_id
    where exists (select 1 from public.group_enrolments e join public.tutorial_groups g on g.id = e.tutorial_group_id
                  where e.student_id = s.id and e.is_active and g.module_id = v_module.id and e.tutorial_group_id <> i.group_id);
@@ -685,7 +709,7 @@ begin
     select count(*) into v_deactivated from public.group_enrolments e
      join public.tutorial_groups g on g.id = e.tutorial_group_id and g.module_id = v_module.id
      join public.students s on s.id = e.student_id
-     where e.is_active and not exists (select 1 from _import_rows i where i.student_id = s.student_id);
+     where e.is_active and not exists (select 1 from app.import_rows() i where i.student_id = s.student_id);
   end if;
 
   if not p_dry_run then
@@ -695,20 +719,20 @@ begin
 
     -- 1. Upsert students on student_id
     insert into public.students (student_id, full_name, is_active)
-    select student_id, student_name, true from _import_rows
+    select student_id, student_name, true from app.import_rows()
     on conflict (student_id) do update
       set full_name = excluded.full_name, is_active = true
       where public.students.full_name <> excluded.full_name or not public.students.is_active;
 
     -- 2. Deactivate enrolments in OTHER groups of the same module (student moved group)
     update public.group_enrolments e set is_active = false
-      from _import_rows i, public.students s, public.tutorial_groups g
+      from app.import_rows() i, public.students s, public.tutorial_groups g
      where s.student_id = i.student_id and e.student_id = s.id and g.id = e.tutorial_group_id
        and g.module_id = v_module.id and e.tutorial_group_id <> i.group_id and e.is_active;
 
     -- 3. Create / reactivate enrolment
     insert into public.group_enrolments (tutorial_group_id, student_id, is_active)
-    select i.group_id, s.id, true from _import_rows i join public.students s on s.student_id = i.student_id
+    select i.group_id, s.id, true from app.import_rows() i join public.students s on s.student_id = i.student_id
     on conflict (tutorial_group_id, student_id) do update set is_active = true
       where not public.group_enrolments.is_active;
 
@@ -717,7 +741,7 @@ begin
       update public.group_enrolments e set is_active = false
         from public.tutorial_groups g, public.students s
        where g.id = e.tutorial_group_id and g.module_id = v_module.id and s.id = e.student_id and e.is_active
-         and not exists (select 1 from _import_rows i where i.student_id = s.student_id);
+         and not exists (select 1 from app.import_rows() i where i.student_id = s.student_id);
     end if;
 
     insert into public.import_batches (filename, module_id, uploaded_by, total_rows, successful_rows, failed_rows,
@@ -751,7 +775,7 @@ begin
     'enrolments_deactivated', v_deactivated,
     'errors', v_errors,
     'group_counts', coalesce((select jsonb_object_agg(group_number, n) from (
-        select group_number, count(*) n from _import_rows group by group_number) c), '{}'::jsonb)
+        select group_number, count(*) n from app.import_rows() group by group_number) c), '{}'::jsonb)
   );
 end;
 $$;
