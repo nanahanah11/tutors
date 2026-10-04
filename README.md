@@ -2,7 +2,7 @@
 
 Internal web application for recording **SDM (`CT046-3-2-SDM`)** and **ISWE (`AAPP003-4-2-ISWE`)** tutorial attendance at Asia Pacific University (APU), Malaysia. It implements [PRD v1.2](PRD.md).
 
-- **Tutors** (May, Amir, Arya, Latifa) sign in with a username (their tutor ID: `MAY`, `AMIR`, `ARYA`, `LATIFA`) and a private 8-character password, pick an assigned class, date and time, and mark each student Present or Absent. They can edit their own record only on the class date, in Malaysia time.
+- **Tutors** (May, Aamir, Arya, Latifa) sign in with a username (their tutor ID: `MAY`, `AAMIR`, `ARYA`, `LATIFA`) and a private 8-character password, pick an assigned class, date and time, and mark each student Present or Absent. They can edit their own record only on the class date, in Malaysia time.
 - **Ms Aida (lecturer)** reviews every saved session on one dashboard, corrects records, exports CSV, and tracks which sessions are still **Pending APSpace Entry** and which are **Keyed into APSpace**.
 
 APSpace entry stays manual. The system does not connect to APSpace (PRD §5).
@@ -70,7 +70,7 @@ tests/               unit, authorization, UI, integration (handlers → SQL), br
 |---|---|
 | `CT046-3-2-SDM-T-39`, `CT046-3-2-SDM-T-40` | May |
 | `CT046-3-2-SDM-T-41` | Latifa |
-| `AAPP003-4-2-ISWE-T-7` | Amir |
+| `AAPP003-4-2-ISWE-T-7` | Aamir |
 | `AAPP003-4-2-ISWE-T-9` | Arya |
 | `CT046-3-2-SDM-T-38`, `CT046-3-2-SDM-T-42`, `AAPP003-4-2-ISWE-T-8` | Unassigned, lecturer-controlled |
 

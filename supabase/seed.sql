@@ -4,7 +4,7 @@
 --   XLSX rosters with `npm run import:roster` or the lecturer Import screen.
 -- * NO tutor codes are stored here (FR-TUT-007). Tutor profiles are created
 --   with an unusable placeholder hash; run `npm run codes:generate` after
---   deployment to generate MAY###, AMIR###, ARYA###, LATIFA### privately.
+--   deployment to generate each tutor's 8-character password privately (npm run passwords:generate).
 -- Idempotent: safe to run more than once.
 -- =============================================================================
 
@@ -28,12 +28,12 @@ on conflict (module_id, group_number) do nothing;
 -- Tutor profiles (FR-TUT-006). Placeholder hash cannot match any code.
 insert into public.profiles (full_name, role, tutor_code_prefix, tutor_code_hash)
 select t.full_name, 'tutor', t.prefix, 'unset:' || gen_random_uuid()
-from (values ('May', 'MAY'), ('Amir', 'AMIR'), ('Arya', 'ARYA'), ('Latifa', 'LATIFA')) as t(full_name, prefix)
+from (values ('May', 'MAY'), ('Aamir', 'AAMIR'), ('Arya', 'ARYA'), ('Latifa', 'LATIFA')) as t(full_name, prefix)
 where not exists (
   select 1 from public.profiles p where p.role = 'tutor' and p.tutor_code_prefix = t.prefix
 );
 
--- Initial assignments: May -> SDM 39/40, Latifa -> SDM 41, Amir -> ISWE 7, Arya -> ISWE 9.
+-- Initial assignments: May -> SDM 39/40, Latifa -> SDM 41, Aamir -> ISWE 7, Arya -> ISWE 9.
 -- SDM-T-38, SDM-T-42 and ISWE-T-8 remain lecturer-controlled / unassigned (§6.1.3).
 insert into public.tutor_group_assignments (tutor_profile_id, tutorial_group_id)
 select p.id, g.id
@@ -41,7 +41,7 @@ from (values
   ('MAY',    'CT046-3-2-SDM-T-39'),
   ('MAY',    'CT046-3-2-SDM-T-40'),
   ('LATIFA', 'CT046-3-2-SDM-T-41'),
-  ('AMIR',   'AAPP003-4-2-ISWE-T-7'),
+  ('AAMIR',  'AAPP003-4-2-ISWE-T-7'),
   ('ARYA',   'AAPP003-4-2-ISWE-T-9')
 ) as a(prefix, tutorial_code)
 join public.profiles p on p.role = 'tutor' and p.tutor_code_prefix = a.prefix
