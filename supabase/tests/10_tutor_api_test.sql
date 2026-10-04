@@ -3,7 +3,7 @@
 begin;
 
 select id as may_id    from public.profiles where tutor_code_prefix = 'MAY' \gset
-select id as amir_id   from public.profiles where tutor_code_prefix = 'AMIR' \gset
+select id as amir_id   from public.profiles where tutor_code_prefix = 'AAMIR' \gset
 select id as g39       from public.tutorial_groups where tutorial_code = 'CT046-3-2-SDM-T-39' \gset
 select id as g40       from public.tutorial_groups where tutorial_code = 'CT046-3-2-SDM-T-40' \gset
 select id as g41       from public.tutorial_groups where tutorial_code = 'CT046-3-2-SDM-T-41' \gset
@@ -99,10 +99,10 @@ begin
          app.my_today(), null, p);
   assert v ->> 'error' = 'TIME_REQUIRED', 'time required';
 
-  -- BR-007: cannot create for an unassigned class (Amir -> SDM 40)
+  -- BR-007: cannot create for an unassigned class (Aamir -> SDM 40)
   v := public.api_tutor_save_attendance(current_setting('t.amir')::uuid, null, current_setting('t.g40')::uuid,
          app.my_today(), '10:45', p);
-  assert v ->> 'error' = 'NOT_ASSIGNED', 'Amir cannot create SDM-T-40 attendance';
+  assert v ->> 'error' = 'NOT_ASSIGNED', 'Aamir cannot create SDM-T-40 attendance';
 
   -- BR-006: student from another group rejected
   v := public.api_tutor_save_attendance(current_setting('t.may')::uuid, null, current_setting('t.g39')::uuid,
@@ -157,11 +157,11 @@ do $$
 declare v jsonb; p jsonb := (select full_payload from t_payload);
 begin
   v := public.api_tutor_save_attendance(current_setting('t.amir')::uuid, current_setting('t.sid')::uuid, null, null, null, p);
-  assert v ->> 'error' = 'NOT_OWNER', 'Amir cannot update May''s session';
+  assert v ->> 'error' = 'NOT_OWNER', 'Aamir cannot update May''s session';
   v := public.api_tutor_session_detail(current_setting('t.amir')::uuid, current_setting('t.sid')::uuid);
-  assert v ->> 'error' = 'NOT_OWNER', 'Amir cannot read May''s session';
+  assert v ->> 'error' = 'NOT_OWNER', 'Aamir cannot read May''s session';
   v := public.api_tutor_sessions(current_setting('t.amir')::uuid);
-  assert jsonb_array_length(v -> 'sessions') = 0, 'Amir sees only own sessions';
+  assert jsonb_array_length(v -> 'sessions') = 0, 'Aamir sees only own sessions';
   v := public.api_tutor_sessions(current_setting('t.may')::uuid);
   assert jsonb_array_length(v -> 'sessions') = 1, 'May sees her session';
 end $$;

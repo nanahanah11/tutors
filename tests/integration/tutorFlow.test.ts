@@ -34,7 +34,7 @@ d('tutor attendance end-to-end through the API boundary', () => {
     for (const [k, code] of [['g39', 'CT046-3-2-SDM-T-39'], ['g40', 'CT046-3-2-SDM-T-40'], ['g41', 'CT046-3-2-SDM-T-41'], ['g7', 'AAPP003-4-2-ISWE-T-7']]) {
       ids[k] = (await pool.query('select id from tutorial_groups where tutorial_code = $1', [code])).rows[0].id;
     }
-    for (const p of ['MAY', 'AMIR']) {
+    for (const p of ['MAY', 'AAMIR']) {
       ids[p] = (await pool.query(`select id from profiles where tutor_code_prefix = $1`, [p])).rows[0].id;
     }
     const backend = pgBackend(pool);
@@ -51,8 +51,8 @@ d('tutor attendance end-to-end through the API boundary', () => {
   const post = (path: string, b: unknown, extra: RequestInit & { ip?: string } = {}) =>
     req(path, { method: 'POST', body: JSON.stringify(b), ...extra });
 
-  it('lecturer generates private passwords for May and Amir (stored hashed)', async () => {
-    for (const [username, id] of [['MAY', ids.MAY], ['AMIR', ids.AMIR]]) {
+  it('lecturer generates private passwords for May and Aamir (stored hashed)', async () => {
+    for (const [username, id] of [['MAY', ids.MAY], ['AAMIR', ids.AAMIR]]) {
       const res = await admin(post('/api/admin/tutors', { action: 'regenerate', tutor_id: id, username }, { headers: { authorization: 'Bearer aida@apu.edu.my' } }));
       const b = await readBody(res);
       expect(res.status).toBe(200);
@@ -75,7 +75,7 @@ d('tutor attendance end-to-end through the API boundary', () => {
     const ok = await login(post('/api/tutor-auth/login', { username: 'may', password: mayPassword }));
     expect(ok.status).toBe(200);
     mayCookie = cookieFrom(ok);
-    amirCookie = cookieFrom(await login(post('/api/tutor-auth/login', { username: 'AMIR', password: amirPassword })));
+    amirCookie = cookieFrom(await login(post('/api/tutor-auth/login', { username: 'AAMIR', password: amirPassword })));
 
     const me = await readBody(await api(req('/api/tutor/me', { headers: { cookie: mayCookie } })));
     expect(me.tutor.full_name).toBe('May');
