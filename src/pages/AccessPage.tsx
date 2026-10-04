@@ -25,7 +25,7 @@ export default function AccessPage() {
     if (busy) return;
     const normalized = normalizeTutorCode(code);
     if (!isValidTutorCodeFormat(normalized)) {
-      setError('Enter your tutor code: your first name followed by 3 digits, e.g. MAY123.');
+      setError('Enter your tutor code: your first name followed by 3 digits.');
       return;
     }
     setBusy(true);
@@ -65,7 +65,6 @@ export default function AccessPage() {
                 className="code-input"
                 value={code}
                 onChange={(e) => setCode(e.target.value.toUpperCase())}
-                placeholder="MAY123"
                 autoComplete="off"
                 autoCapitalize="characters"
                 spellCheck={false}

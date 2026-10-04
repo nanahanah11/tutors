@@ -1,6 +1,6 @@
 /** Tutor home (PRD §11.2). */
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useTutor } from '../hooks/useTutor';
 import { tutorApi, ApiError } from '../services/tutorApi';
 import type { TutorSession } from '../types/db';
@@ -11,6 +11,7 @@ import { RosterNotice } from '../components/attendance/RosterNotice';
 
 export default function TutorDashboard() {
   const { ctx } = useTutor();
+  const flash = (useLocation().state as { flash?: string } | null)?.flash;
   const [sessions, setSessions] = useState<TutorSession[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,6 +38,7 @@ export default function TutorDashboard() {
         </Link>
       </div>
 
+      {flash && <Alert kind="ok">{flash}</Alert>}
       <RosterNotice />
 
       <section className="card" aria-labelledby="classes-h">

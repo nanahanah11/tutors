@@ -79,9 +79,20 @@ describe('AttendanceMarker (§11.4, AC-004, AC-005, AC-011)', () => {
     expect(screen.getByLabelText('Attendance summary')).toHaveTextContent('Present2');
   });
 
+  it('Mark All Absent marks everyone absent, individuals can still be changed', async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getByRole('button', { name: 'Mark All Absent' }));
+    expect(screen.getByLabelText('Attendance summary')).toHaveTextContent('Absent3');
+    await user.click(within(screen.getByRole('radiogroup', { name: 'Ahmad Bin Ali' })).getByLabelText(/Present/));
+    expect(screen.getByLabelText('Attendance summary')).toHaveTextContent('Present1');
+    expect(screen.getByLabelText('Attendance summary')).toHaveTextContent('Absent2');
+  });
+
   it('read-only mode disables the controls', () => {
     render(<AttendanceMarker students={students} marks={{ a: 'present' }} onMarksChange={() => {}} readOnly />);
     for (const r of screen.getAllByRole('radio')) expect(r).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Mark All Present' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Mark All Absent' })).toBeNull();
   });
 });

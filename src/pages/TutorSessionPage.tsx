@@ -1,13 +1,13 @@
 /** Re-open own attendance: editable only on the class date in Malaysia time (FR-SAVE-005..007). */
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useLocation, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useTutor } from '../hooks/useTutor';
 import { tutorApi, ApiError } from '../services/tutorApi';
 import { errorMessage } from '../shared/errors';
 import { buildRecordsPayload, countAttendance, validateAttendance, type Marks, type RosterStudent } from '../shared/roster';
 import { formatDate, formatTime, formatTimestamp, msUntilEditWindowCloses } from '../shared/time';
 import type { TutorSession } from '../types/db';
-import { Alert, ApspaceBadge, Spinner } from '../components/ui';
+import { Alert, Spinner } from '../components/ui';
 import { AttendanceMarker } from '../components/attendance/AttendanceMarker';
 import { RosterNotice } from '../components/attendance/RosterNotice';
 import { SaveConfirmation } from '../components/attendance/SaveConfirmation';
@@ -17,6 +17,7 @@ export default function TutorSessionPage() {
   const { sessionId = '' } = useParams();
   const { ctx } = useTutor();
   const location = useLocation();
+  const navigate = useNavigate();
   const [session, setSession] = useState<TutorSession | null>(null);
   const [students, setStudents] = useState<RosterStudent[]>([]);
   const [marks, setMarks] = useState<Marks>({});
@@ -25,9 +26,7 @@ export default function TutorSessionPage() {
   const [editable, setEditable] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(
-    (location.state as { justSaved?: boolean } | null)?.justSaved ? 'Attendance saved successfully.' : null,
-  );
+  const message = (location.state as { justSaved?: boolean } | null)?.justSaved ? 'Attendance saved successfully.' : null;
 
   const load = useCallback(async () => {
     try {
@@ -67,14 +66,18 @@ export default function TutorSessionPage() {
     setError(null);
     try {
       const r = await tutorApi.update(sessionId, buildRecordsPayload(students, marks, remarks));
-      setSession(r.session);
       setConfirmOpen(false);
-      setMessage(
-        r.changed > 0
-          ? `Attendance updated successfully (${r.changed} change${r.changed === 1 ? '' : 's'}).`
-          : 'No changes were made.',
-      );
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      // After a successful edit, return to the tutor home screen.
+      navigate('/tutor', {
+        replace: true,
+        state: {
+          flash:
+            r.changed > 0
+              ? `Attendance updated successfully (${r.changed} change${r.changed === 1 ? '' : 's'}).`
+              : 'No changes were made to the attendance.',
+        },
+      });
+      return;
     } catch (e) {
       const code = e instanceof ApiError ? e.code : 'SERVER_ERROR';
       if (code === 'EDIT_WINDOW_CLOSED') setEditable(false);
@@ -108,7 +111,6 @@ export default function TutorSessionPage() {
       <section className="card" aria-label="Session details">
         <div className="card-header">
           <h1 style={{ margin: 0 }}>{editable ? 'Edit attendance' : 'Attendance record'}</h1>
-          <ApspaceBadge status={session.apspace_status} />
         </div>
         <div className="marking-head">
           <div><span>Tutor</span><strong>{session.tutor_name}</strong></div>

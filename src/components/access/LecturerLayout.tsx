@@ -14,11 +14,6 @@ export function LecturerLayout() {
           <nav className="app-nav" aria-label="Lecturer">
             <NavLink to="/lecturer" end>Dashboard</NavLink>
             <NavLink to="/lecturer/students">Students</NavLink>
-            <NavLink to="/lecturer/groups">Tutorial Groups</NavLink>
-            <NavLink to="/lecturer/modules">Modules</NavLink>
-            <NavLink to="/lecturer/tutors">Tutors &amp; Codes</NavLink>
-            <NavLink to="/lecturer/import">Import</NavLink>
-            <NavLink to="/lecturer/audit">Audit Log</NavLink>
           </nav>
         }
         user={

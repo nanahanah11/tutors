@@ -18,6 +18,10 @@ const base = 'http://localhost:5179';
     await page.waitForURL(`${base}/`);
     if (await page.getByText('TP9').count()) throw new Error('student data visible');
   });
+  await step('code field has no placeholder example', async () => {
+    const ph = await page.getByLabel('Tutor Code').getAttribute('placeholder');
+    if (ph) throw new Error('placeholder: ' + ph);
+  });
   await step('invalid code shows friendly error', async () => {
     await page.getByLabel('Tutor Code').fill('MAY000' === code ? 'MAY001' : 'MAY000');
     await page.getByRole('button', { name: 'Continue' }).click();
@@ -53,6 +57,8 @@ const base = 'http://localhost:5179';
     await page.locator('tbody tr').first().getByText('Absent').click();
     await page.getByLabel('Search student name or TP number').fill('');
     if ((await page.locator('tbody tr').count()) !== 15) throw new Error('clear search failed');
+    await page.getByRole('button', { name: 'Mark All Absent' }).click();
+    if ((await page.locator('.stat.absent .stat-value').innerText()).trim() !== '15') throw new Error('mark all absent failed');
     await page.getByRole('button', { name: 'Mark All Present' }).click();
     // Mark All Present overrides; re-mark absent for 2 students
     await page.locator('tbody tr').nth(0).getByText('Absent').click();
@@ -79,12 +85,15 @@ const base = 'http://localhost:5179';
     await page.getByText('Attendance already exists for this class, date and time').waitFor();
     await page.getByRole('link', { name: 'Open and edit existing record' }).click();
     await page.getByRole('heading', { name: 'Edit attendance' }).waitFor();
+    if (await page.getByText('Pending APSpace Entry').count()) throw new Error('APSpace badge visible to tutor');
   });
   await step('same-day edit saves changes', async () => {
     await page.locator('tbody tr').nth(0).getByText('Present').click();
     await page.getByRole('button', { name: 'Save Attendance' }).click();
     await page.locator('dialog.modal').getByRole('button', { name: 'Confirm Save' }).click();
+    await page.getByRole('heading', { name: /Welcome, May/ }).waitFor();
     await page.getByText('Attendance updated successfully (1 change)').waitFor();
+    if (!page.url().endsWith('/tutor')) throw new Error('not returned home: ' + page.url());
   });
   await step('after the class date the record is read-only', async () => {
     const { execSync } = require('child_process');

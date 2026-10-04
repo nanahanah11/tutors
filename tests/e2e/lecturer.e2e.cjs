@@ -27,9 +27,13 @@ const session = {
     await page.goto(`${base}/lecturer`);
     await page.getByRole('heading', { name: 'Attendance Dashboard' }).waitFor();
   });
+  await step('lecturer menu only offers Dashboard and Students', async () => {
+    const items = await page.locator('nav[aria-label="Lecturer"] a').allInnerTexts();
+    if (items.join('|') !== 'Dashboard|Students') throw new Error(items.join('|'));
+  });
   let code;
   await step('regenerate May code from Tutors page (shown once)', async () => {
-    await page.getByRole('link', { name: 'Tutors & Codes' }).click();
+    await page.goto(`${base}/lecturer/tutors`);
     await page.getByRole('heading', { name: 'Tutor profiles' }).waitFor();
     page.once('dialog', (d) => d.accept());
     const row = page.locator('tr', { hasText: 'MAY###' });
@@ -112,7 +116,7 @@ const session = {
     await page.getByText('Student Test Student Baru (TP777001) added to CT046-3-2-SDM-T-40.').waitFor();
   });
   await step('groups page shows counts and unassigned groups', async () => {
-    await page.getByRole('link', { name: 'Tutorial Groups' }).click();
+    await page.goto(`${base}/lecturer/groups`);
     const r40 = page.locator('tbody tr', { hasText: 'CT046-3-2-SDM-T-40' });
     await r40.waitFor();
     if (!(await r40.innerText()).includes('16')) throw new Error(await r40.innerText());
@@ -120,7 +124,7 @@ const session = {
     await page.screenshot({ path: `${SP}/14-groups.png`, fullPage: true });
   });
   await step('import CSV: preview then commit', async () => {
-    await page.getByRole('link', { name: 'Import' }).click();
+    await page.goto(`${base}/lecturer/import`);
     await page.selectOption('#imp-module', { label: 'SDM (CT046-3-2-SDM)' });
     await page.setInputFiles('#imp-file', `${__dirname}/fixtures/roster.csv`);
     await page.getByText('Excluded – no tutorial group').waitFor();
@@ -133,10 +137,10 @@ const session = {
     if (!/Students created\s*2/.test(txt)) throw new Error(txt);
   });
   await step('audit log page lists events', async () => {
-    await page.getByRole('link', { name: 'Audit Log' }).click();
-    await page.getByText('Roster import').first().waitFor();
+    await page.goto(`${base}/lecturer/audit`);
+    await page.locator('.audit-list').getByText('Roster import', { exact: true }).first().waitFor();
     await page.selectOption('#audit-action', 'apspace_keyed');
-    await page.getByText('Marked as Keyed into APSpace').first().waitFor();
+    await page.locator('.audit-list').getByText('Marked as Keyed into APSpace', { exact: true }).first().waitFor();
   });
   await step('sign out', async () => {
     await page.getByRole('button', { name: 'Sign out' }).click();

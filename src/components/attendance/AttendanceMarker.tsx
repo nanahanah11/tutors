@@ -68,6 +68,9 @@ export function AttendanceMarker({
             <button type="button" className="btn" onClick={() => onMarksChange(markAll(sorted, marks, 'present'))}>
               Mark All Present
             </button>
+            <button type="button" className="btn" onClick={() => onMarksChange(markAll(sorted, marks, 'absent'))}>
+              Mark All Absent
+            </button>
           </div>
         )}
       </div>

@@ -145,15 +145,16 @@ npm run import:roster -- CT046_Student_List.xlsx AAPP003_ISWE_Student_List.xlsx 
 ### Tutors
 1. Open the site and enter your tutor code, for example `MAY123`.
 2. Select **New Attendance**, then choose the **Class / Subject**, the **Class Date** (defaults to today; future dates are blocked) and the **Class Time**.
-3. Mark every student **Present** or **Absent**. You can use **Mark All Present** and then change individual students. Search by name or TP number; your selections stay when you clear the search.
+3. Mark every student **Present** or **Absent**. You can use **Mark All Present** or **Mark All Absent** and then change individual students. Search by name or TP number; your selections stay when you clear the search.
 4. **Save Attendance** stays disabled until every student is marked. Check the confirmation summary and absent list, then select **Confirm Save**.
-5. You can reopen and edit your record until **11:59 PM Malaysia time on the class date**. After that it is read-only, so contact Ms Aida.
+5. After you save an edit you are returned to the home screen. You can reopen and edit your record until **11:59 PM Malaysia time on the class date**. After that it is read-only, so contact Ms Aida.
 6. **Any changes related to the student list, please let Ms Aida know ASAP.** Tutors cannot add, remove or move students.
 
 ### Ms Aida
 - **Dashboard**: newest sessions first. Filter by module, group, tutor, date range and APSpace status. Rows still pending APSpace entry have an amber marker. Select several pending rows to mark them keyed in together. **Export CSV (filtered)** downloads student-level rows.
 - **Session detail**: metadata (tutor, tutor profile ID, saved and updated times), totals, the full roster with remarks, **Edit / Correct**, **Export CSV**, **Print**, **Mark as Keyed into APSpace** (or revert) and the audit trail.
-- **Students / Tutorial Groups / Modules**: maintain master data. Deactivate or archive instead of deleting; history is kept.
+- **Menu**: the lecturer menu currently shows only **Dashboard** and **Students**. The Tutorial Groups, Modules, Tutors & Codes, Import and Audit Log screens still exist and can be reopened at `/lecturer/groups`, `/lecturer/modules`, `/lecturer/tutors`, `/lecturer/import` and `/lecturer/audit`, or re-added to the menu in `src/components/access/LecturerLayout.tsx`.
+- **Students**: maintain master data. Deactivate instead of deleting; history is kept.
 - **Tutors & Codes**: add tutors, generate or regenerate codes (each code is shown once), deactivate tutors, and assign tutors to classes, including temporary cover.
 - **Import**: upload an XLSX or CSV file, review the file check and server preview, then commit. **Audit Log**: every attendance, roster, assignment and code change.
 
