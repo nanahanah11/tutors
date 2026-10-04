@@ -22,7 +22,7 @@ if [ ! -x "$CACHE/postgrest" ]; then
   tar -xf "$CACHE/pgrst.tar.xz" -C "$CACHE"
 fi
 
-dropdb --if-exists "$DB" >/dev/null 2>&1 || true
+dropdb --if-exists --force "$DB" >/dev/null 2>&1 || true
 createdb "$DB"
 P=(psql -v ON_ERROR_STOP=1 -q -X -d "$DB")
 "${P[@]}" -f supabase/tests/00_local_supabase_stub.sql

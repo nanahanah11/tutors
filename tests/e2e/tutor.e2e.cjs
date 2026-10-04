@@ -42,6 +42,7 @@ const base = 'http://localhost:5179';
   });
   await step('setup form: dropdown, date max today, time', async () => {
     await page.getByRole('link', { name: '+ New Attendance' }).click();
+    await page.locator('#class option').nth(1).waitFor({ state: 'attached' }); // options load asynchronously
     const opts = await page.locator('#class option').allInnerTexts();
     if (opts.join('|') !== '— Select your class —|SDM – CT046-3-2-SDM-T-39|SDM – CT046-3-2-SDM-T-40') throw new Error(opts.join('|'));
     const max = await page.locator('#date').getAttribute('max');
