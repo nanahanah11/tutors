@@ -84,8 +84,8 @@ Student rosters are **not** in this repository, because they are personal data. 
 |---|---|
 | Supabase project | `apu-tutorial-attendance` (`gywcohjrtnctpbyfrcyy`, region ap-southeast-1) – migrations, seed and the initial rosters are applied |
 | Netlify site | `apu-tutorial-attendance` → https://apu-tutorial-attendance.netlify.app |
-| Netlify env vars set | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `TUTOR_SESSION_SECRET`, `TUTOR_CODE_PEPPER` |
-| Still to set by the project owner | `SUPABASE_SERVICE_ROLE_KEY` (Supabase → Project Settings → API Keys). It cannot be read through the Supabase connector, so it is never handled by Claude. |
+| Netlify env vars set | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `TUTOR_SESSION_SECRET`, `TUTOR_CODE_PEPPER` (all contexts). Netlify reads them at deploy time, so **redeploy after changing any of them**. The three server values are saved as plain variables; in the Netlify UI, open each and tick *Contains secret values* to hide them. |
+| If login says "Missing server settings" | The named variables are not visible to the deployed functions. Add them under Project configuration → Environment variables, then trigger a new deploy. |
 
 ## Deployment (PRD §32.1 go-live checklist)
 
